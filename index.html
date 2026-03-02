@@ -218,14 +218,18 @@
 
   /* === 印刷 === */
   @media print {
-    body { background: #fff; margin: 0; }
+    html, body { background: #fff; margin: 0; padding: 0; width: 210mm; height: 297mm; }
     .tab-bar, .form-container, .preview-buttons { display: none !important; }
     .print-area {
-      display: flex !important; width: 100%; height: 297mm;
-      margin: 0; padding: 8mm 12mm; box-shadow: none; border: none;
+      display: flex !important;
+      width: 210mm; height: 297mm; max-height: 297mm;
+      margin: 0; padding: 10mm 15mm;
+      box-shadow: none; border: none;
       overflow: hidden;
+      page-break-after: avoid; page-break-inside: avoid;
     }
-    @page { size: A4; margin: 5mm; }
+    .print-area * { page-break-inside: avoid; }
+    @page { size: A4 portrait; margin: 0; }
   }
 </style>
 </head>
