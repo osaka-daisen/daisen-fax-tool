@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>書類作成ツール - 大泉衛生</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
 <style>
   * { box-sizing: border-box; }
   body {
@@ -94,13 +96,16 @@
     cursor: pointer; margin-top: 16px;
   }
   .btn:hover { background: #1d4ed8; }
+  .btn:disabled { background: #93c5fd; cursor: not-allowed; }
+  .btn-pdf { background: #dc2626; margin-top: 8px; }
+  .btn-pdf:hover { background: #b91c1c; }
   .btn-secondary { background: #6b7280; margin-top: 8px; }
   .btn-secondary:hover { background: #4b5563; }
 
-  /* === 印刷エリア（A4厳守） === */
+  /* === 印刷エリア（A4: 794x1123px @96dpi） === */
   .print-area {
-    display: none; width: 210mm; height: 297mm; overflow: hidden;
-    margin: 0 auto; padding: 12mm 18mm 10mm; background: #fff;
+    display: none; width: 794px; height: 1123px; overflow: hidden;
+    margin: 0 auto; padding: 45px 68px 38px; background: #fff;
     font-family: "Yu Mincho", "Hiragino Mincho Pro", "MS Mincho", serif;
     color: #000;
     flex-direction: column;
@@ -175,7 +180,7 @@
     text-align: right; font-size: 12px; margin-top: 8px; padding-right: 16px;
   }
 
-  /* MEMO（コンパクト） */
+  /* MEMO */
   .print-area .memo-title { font-size: 12px; font-weight: bold; margin-bottom: 4px; }
   .print-area .memo-body {
     font-size: 11px; line-height: 1.7; white-space: pre-wrap;
@@ -198,8 +203,8 @@
     .doc-card .doc-qty { width: 48px; }
     .btn { padding: 12px; font-size: 15px; }
     body.preview-mode .print-area {
-      width: 100vw; height: auto; padding: 8mm 6mm;
-      font-size: 10px; overflow: auto;
+      width: 100vw; height: auto; min-height: auto;
+      padding: 20px 16px; font-size: 10px; overflow: auto;
     }
   }
 
@@ -211,29 +216,36 @@
     margin: 20px auto; box-shadow: 0 2px 12px rgba(0,0,0,0.15);
   }
   body.preview-mode .preview-buttons {
-    display: flex; justify-content: center; gap: 12px; padding: 16px;
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; padding: 16px;
   }
   .preview-buttons { display: none; }
   .preview-buttons .btn { width: auto; padding: 12px 32px; margin: 0; }
 
-  /* === 印刷 === */
-  @media print {
-    html, body { background: #fff; margin: 0; padding: 0; width: 210mm; height: 297mm; }
-    .tab-bar, .form-container, .preview-buttons { display: none !important; }
-    .print-area {
-      display: flex !important;
-      width: 210mm; height: 297mm; max-height: 297mm;
-      margin: 0; padding: 10mm 15mm;
-      box-shadow: none; border: none;
-      overflow: hidden;
-      page-break-after: avoid; page-break-inside: avoid;
-    }
-    .print-area * { page-break-inside: avoid; }
-    @page { size: A4 portrait; margin: 0; }
+  /* PDF生成中オーバーレイ */
+  .pdf-overlay {
+    display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.6); z-index: 9999;
+    justify-content: center; align-items: center;
   }
+  .pdf-overlay.active { display: flex; }
+  .pdf-overlay .msg {
+    background: #fff; padding: 24px 40px; border-radius: 12px;
+    font-size: 18px; font-weight: bold; text-align: center;
+  }
+  .pdf-overlay .spinner {
+    width: 32px; height: 32px; border: 4px solid #ddd; border-top-color: #2563eb;
+    border-radius: 50%; animation: spin 0.8s linear infinite;
+    margin: 12px auto 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
+
+<!-- PDF生成中オーバーレイ -->
+<div class="pdf-overlay" id="pdf-overlay">
+  <div class="msg">PDF作成中...<div class="spinner"></div></div>
+</div>
 
 <!-- === タブ === -->
 <div class="tab-bar">
@@ -396,12 +408,12 @@
     <input type="number" id="f-pages" value="2" min="1" max="99">
   </div>
 
-  <button class="btn" onclick="showPreview()">プレビュー / 印刷</button>
+  <button class="btn" onclick="showPreview()">プレビュー</button>
 </div>
 
 <!-- === プレビューボタン === -->
 <div class="preview-buttons">
-  <button class="btn" onclick="window.print()">印刷する</button>
+  <button class="btn btn-pdf" id="btn-pdf" onclick="generatePDF()">PDF作成・ダウンロード</button>
   <button class="btn btn-secondary" onclick="backToForm()">戻って修正</button>
 </div>
 
@@ -539,25 +551,21 @@
         let docName = cb.dataset.doc;
         const qty = card.querySelector('.doc-qty').value;
         const unit = card.querySelector('.doc-qty-label').textContent;
-        const returnType = cb.dataset.return; // 0=なし, 1=署名捺印, 3=記入押印
+        const returnType = cb.dataset.return;
         const isCarbon = cb.dataset.carbon === '1';
         const noteInput = card.querySelector('.doc-note-input');
         const noteText = noteInput ? noteInput.value.trim() : '';
 
-        // 物件名を先頭に付与
         if (bukken && (docName.includes('契約書') || docName === '御見積書')) {
           docName = bukken + '　' + docName;
         }
 
-        // 部数表記
         let qtyStr = qty + unit;
         if (isCarbon) {
           qtyStr = qty + '組（複写式）';
         }
 
-        // 備考欄
         let printNote = noteText;
-
         sendDocs.push({ name: docName, qty: qtyStr, note: printNote });
 
         if (returnType === '1') {
@@ -575,7 +583,6 @@
         });
       }
 
-      // 送付書類テーブル
       const tbody = document.getElementById('p-doc-tbody');
       tbody.innerHTML = '';
       sendDocs.forEach(doc => {
@@ -585,7 +592,6 @@
       });
       docSection.classList.remove('hidden');
 
-      // 返送セクション
       if (showReturn && returnDocs.length > 0) {
         const rtbody = document.getElementById('p-return-tbody');
         rtbody.innerHTML = '';
@@ -594,7 +600,6 @@
           tr.innerHTML = `<td>${doc.name}</td><td class="qty">${doc.qty}</td><td class="note">${doc.note}</td>`;
           rtbody.appendChild(tr);
         });
-        // 返送期日
         const deadlineEl = document.getElementById('p-return-deadline');
         if (returnDeadline) {
           const rd = new Date(returnDeadline);
@@ -627,6 +632,60 @@
 
   function backToForm() {
     document.body.classList.remove('preview-mode');
+  }
+
+  // === PDF生成 ===
+  async function generatePDF() {
+    const btn = document.getElementById('btn-pdf');
+    const overlay = document.getElementById('pdf-overlay');
+    btn.disabled = true;
+    overlay.classList.add('active');
+
+    try {
+      const el = document.getElementById('print-area');
+
+      // キャプチャ用に一時的にサイズ固定（スマホでも正確なA4比率）
+      const origStyle = el.getAttribute('style') || '';
+      el.style.width = '794px';
+      el.style.height = '1123px';
+      el.style.overflow = 'hidden';
+      el.style.display = 'flex';
+
+      await new Promise(r => setTimeout(r, 100));
+
+      const canvas = await html2canvas(el, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        width: 794,
+        height: 1123,
+        windowWidth: 794,
+        windowHeight: 1123,
+      });
+
+      // スタイル復元
+      el.setAttribute('style', origStyle);
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+      pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+
+      // ファイル名を生成
+      const company = document.getElementById('f-company').value || '書類';
+      const type = currentTab === 'fax' ? 'FAX送信案内' : '送付状';
+      const today = document.getElementById('f-date').value.replace(/-/g, '');
+      const filename = `${type}_${company}_${today}.pdf`;
+
+      pdf.save(filename);
+    } catch(e) {
+      alert('PDF作成に失敗しました: ' + e.message);
+      console.error(e);
+    } finally {
+      btn.disabled = false;
+      overlay.classList.remove('active');
+    }
   }
 </script>
 </body>
