@@ -193,21 +193,21 @@ function App() {
       note: d.note,
     };
 
-    // ★ 改修ポイント：確実にGASにデータを届ける送信方式
-    // POST送信を試み、失敗したらGETでフォールバック
-    fetch(GAS_URL, {
-      method: "POST",
-      body: JSON.stringify(payload),
-      redirect: "follow",
-    }).then(res => {
+    // ★ GitHub Pages対応：CORS問題を回避する送信方式
+    // GETパラメータ + no-cors で確実にGASに届ける
+    var params = encodeURIComponent(JSON.stringify(payload));
+    var getUrl = GAS_URL + "?data=" + params;
+
+    // 方法1: fetch no-cors GET
+    fetch(getUrl, {mode: "no-cors"}).then(function() {
       setStep(STEPS+1); setSubmitting(false);
-    }).catch(() => {
-      // フォールバック：GETパラメータで送信
-      var params = encodeURIComponent(JSON.stringify(payload));
-      fetch(GAS_URL + "?data=" + params, {mode: "no-cors"})
-        .finally(() => {
-          setStep(STEPS+1); setSubmitting(false);
-        });
+    }).catch(function() {
+      // 方法2: Image beacon（fetchが失敗した場合のフォールバック）
+      var img = new Image();
+      img.onload = img.onerror = function() {
+        setStep(STEPS+1); setSubmitting(false);
+      };
+      img.src = getUrl;
     });
   };
 
