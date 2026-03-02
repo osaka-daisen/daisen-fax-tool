@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>書類作成ツール - 大泉衛生</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Yu Gothic", "Hiragino Kaku Gothic Pro", "Meiryo", sans-serif;
+    margin: 0; padding: 0; background: #f0f2f5;
+  }
+
+  /* === タブ切替 === */
+  .tab-bar {
+    display: flex; max-width: 640px; margin: 16px auto 0;
+    background: #fff; border-radius: 12px 12px 0 0;
+    overflow: hidden; box-shadow: 0 -2px 8px rgba(0,0,0,0.06);
+  }
+  .tab-bar button {
+    flex: 1; padding: 14px 8px; border: none; background: #e5e7eb;
+    font-size: 15px; font-weight: bold; color: #666; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .tab-bar button.active { background: #2563eb; color: #fff; }
+
+  /* === フォーム === */
+  .form-container {
+    max-width: 640px; margin: 0 auto 20px; background: #fff;
+    padding: 20px 24px 24px; border-radius: 0 0 12px 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+  }
+  .form-group { margin-bottom: 14px; }
+  .form-group label {
+    display: block; font-weight: bold; margin-bottom: 3px;
+    font-size: 13px; color: #555;
+  }
+  .form-group input, .form-group textarea, .form-group select {
+    width: 100%; padding: 10px; border: 1px solid #ddd;
+    border-radius: 8px; font-size: 16px;
+  }
+  .form-group textarea { height: 100px; resize: vertical; }
+  .form-row { display: flex; gap: 10px; }
+  .form-row .form-group { flex: 1; }
+  .section-title {
+    font-size: 14px; font-weight: bold; color: #2563eb;
+    margin: 18px 0 8px; padding-bottom: 4px;
+    border-bottom: 2px solid #2563eb;
+  }
+  .hidden { display: none !important; }
+
+  /* 書類カード */
+  .doc-card {
+    background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px;
+    padding: 8px 12px; margin-bottom: 6px;
+    transition: all 0.15s;
+  }
+  .doc-card.checked { background: #dbeafe; border-color: #93c5fd; }
+  .doc-card .doc-top {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .doc-card input[type="checkbox"] { width: 18px; height: 18px; flex-shrink: 0; }
+  .doc-card .doc-name {
+    flex: 1; font-size: 13px; font-weight: 600; color: #333; cursor: pointer;
+  }
+  .doc-card .doc-qty {
+    width: 56px; padding: 4px 6px; border: 1px solid #d1d5db;
+    border-radius: 6px; font-size: 14px; text-align: center;
+  }
+  .doc-card .doc-qty-label {
+    font-size: 12px; color: #888; flex-shrink: 0;
+  }
+  .doc-card .doc-note-row {
+    display: none; margin-top: 5px; padding-left: 26px;
+  }
+  .doc-card.checked .doc-note-row { display: block; }
+  .doc-card .doc-note-input {
+    width: 100%; padding: 5px 8px; border: 1px solid #d1d5db;
+    border-radius: 6px; font-size: 13px;
+  }
+
+  .doc-custom { margin-top: 8px; }
+
+  .return-toggle {
+    display: flex; align-items: center; gap: 8px;
+    margin: 12px 0 8px; font-size: 14px; cursor: pointer;
+  }
+  .return-toggle input { width: 18px; height: 18px; }
+
+  .btn {
+    display: block; width: 100%; padding: 14px;
+    background: #2563eb; color: #fff; border: none;
+    border-radius: 8px; font-size: 16px; font-weight: bold;
+    cursor: pointer; margin-top: 16px;
+  }
+  .btn:hover { background: #1d4ed8; }
+  .btn-secondary { background: #6b7280; margin-top: 8px; }
+  .btn-secondary:hover { background: #4b5563; }
+
+  /* === 印刷エリア（A4厳守） === */
+  .print-area {
+    display: none; width: 210mm; height: 297mm; overflow: hidden;
+    margin: 0 auto; padding: 12mm 18mm 10mm; background: #fff;
+    font-family: "Yu Mincho", "Hiragino Mincho Pro", "MS Mincho", serif;
+    color: #000;
+    flex-direction: column;
+  }
+  .print-area .content-main { flex: 0 0 auto; }
+  .print-area .content-memo { flex: 1 1 auto; display: flex; flex-direction: column; }
+  .print-area .content-memo .memo-body { flex: 1 1 auto; }
+  .print-area .content-footer { flex: 0 0 auto; margin-top: auto; }
+  .print-area .title-line {
+    border-top: 2.5px double #000; padding-top: 6px;
+    font-size: 20px; font-weight: bold; text-align: center;
+    margin-bottom: 3px;
+  }
+  .print-area .date-line {
+    text-align: right; font-size: 12px; margin-bottom: 10px;
+  }
+  .print-area .recipient-block {
+    margin-bottom: 14px; padding-left: 8px;
+  }
+  .print-area .recipient-block .name {
+    font-size: 16px; font-weight: bold;
+  }
+  .print-area .recipient-block .sub { font-size: 12px; color: #333; }
+  .print-area .sender-block {
+    text-align: right; font-size: 11px; line-height: 1.6;
+    margin-bottom: 14px;
+  }
+  .print-area .sender-block .co {
+    font-size: 13px; font-weight: bold; letter-spacing: 1.5px;
+  }
+  .print-area .greeting-text {
+    text-align: center; font-size: 12px; margin-bottom: 4px;
+  }
+  .print-area .body-text {
+    text-align: center; font-size: 12px; margin-bottom: 10px;
+  }
+  .print-area .ki {
+    text-align: center; font-size: 13px; font-weight: bold; margin: 8px 0 6px;
+  }
+  .print-area .sep { border-top: 1px solid #000; margin: 8px 0; }
+
+  /* テーブル（コンパクト） */
+  .print-area table {
+    width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 6px;
+  }
+  .print-area table th, .print-area table td {
+    border: 1px solid #000; padding: 4px 8px;
+  }
+  .print-area table th {
+    background: #f0f0f0; font-weight: bold; text-align: center;
+  }
+  .print-area table th.col-doc { width: 70%; }
+  .print-area table th.col-qty { width: 15%; }
+  .print-area table th.col-note { width: 15%; }
+  .print-area table td.qty { text-align: center; }
+  .print-area table td.note { text-align: center; font-size: 10px; }
+
+  .print-area .return-box {
+    margin-top: 10px; padding: 8px 10px; border: 2px solid #000;
+  }
+  .print-area .return-box .return-title {
+    font-size: 12px; font-weight: bold; margin-bottom: 4px;
+    text-align: center; text-decoration: underline;
+  }
+  .print-area .return-deadline {
+    font-size: 11px; font-weight: bold; text-align: center; margin-top: 6px;
+  }
+  .print-area .return-note {
+    font-size: 10px; text-align: center; margin-top: 4px; color: #333;
+  }
+  .print-area .ijou {
+    text-align: right; font-size: 12px; margin-top: 8px; padding-right: 16px;
+  }
+
+  /* MEMO（コンパクト） */
+  .print-area .memo-title { font-size: 12px; font-weight: bold; margin-bottom: 4px; }
+  .print-area .memo-body {
+    font-size: 11px; line-height: 1.7; white-space: pre-wrap;
+    min-height: 50px; padding: 6px; border: 1px solid #ccc;
+  }
+  .print-area .page-count {
+    font-size: 11px; margin-top: 12px; text-align: center;
+  }
+  .print-area .footer-line {
+    border-bottom: 2.5px double #000; margin-top: 6px;
+  }
+
+  /* === スマホ対応 === */
+  @media (max-width: 500px) {
+    .tab-bar { margin: 8px 8px 0; border-radius: 10px 10px 0 0; }
+    .tab-bar button { padding: 12px 6px; font-size: 14px; }
+    .form-container { margin: 0 8px 16px; padding: 16px 14px 20px; }
+    .form-row { flex-direction: column; gap: 0; }
+    .doc-card .doc-name { font-size: 12px; }
+    .doc-card .doc-qty { width: 48px; }
+    .btn { padding: 12px; font-size: 15px; }
+    body.preview-mode .print-area {
+      width: 100vw; height: auto; padding: 8mm 6mm;
+      font-size: 10px; overflow: auto;
+    }
+  }
+
+  /* === プレビューモード === */
+  body.preview-mode .tab-bar,
+  body.preview-mode .form-container { display: none; }
+  body.preview-mode .print-area {
+    display: flex; border: 1px solid #ddd;
+    margin: 20px auto; box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+  }
+  body.preview-mode .preview-buttons {
+    display: flex; justify-content: center; gap: 12px; padding: 16px;
+  }
+  .preview-buttons { display: none; }
+  .preview-buttons .btn { width: auto; padding: 12px 32px; margin: 0; }
+
+  /* === 印刷 === */
+  @media print {
+    body { background: #fff; margin: 0; }
+    .tab-bar, .form-container, .preview-buttons { display: none !important; }
+    .print-area {
+      display: flex !important; width: 100%; height: 297mm;
+      margin: 0; padding: 8mm 12mm; box-shadow: none; border: none;
+      overflow: hidden;
+    }
+    @page { size: A4; margin: 5mm; }
+  }
+</style>
+</head>
+<body>
+
+<!-- === タブ === -->
+<div class="tab-bar">
+  <button class="active" onclick="switchTab('fax')">FAX送信案内</button>
+  <button onclick="switchTab('soufu')">送付状</button>
+</div>
+
+<!-- === 入力フォーム === -->
+<div class="form-container">
+  <div class="section-title">基本情報</div>
+
+  <div class="form-group">
+    <label>日付</label>
+    <input type="date" id="f-date">
+  </div>
+
+  <div class="form-group">
+    <label>送付先（会社名）</label>
+    <input type="text" id="f-company" placeholder="例: 日機 株式会社">
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label>部署・担当者 ※任意</label>
+      <input type="text" id="f-person" placeholder="例: 営業部 山田様">
+    </div>
+    <div class="form-group">
+      <label>敬称</label>
+      <select id="f-keisho">
+        <option value="御中">御中</option>
+        <option value="様">様</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- FAX専用 -->
+  <div id="fax-fields">
+    <div class="form-group">
+      <label>送信先 FAX番号 ※任意</label>
+      <input type="tel" id="f-fax" placeholder="例: 06-1234-5678">
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label>担当者</label>
+      <select id="f-tantou">
+        <option value="木村">木村</option>
+        <option value="原田">原田</option>
+        <option value="藤川">藤川</option>
+        <option value="森田">森田</option>
+        <option value="中村">中村</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>物件名 ※任意</label>
+      <input type="text" id="f-bukken" placeholder="例: パティーナ大阪">
+    </div>
+  </div>
+
+  <!-- 送付状専用 -->
+  <div id="soufu-fields" class="hidden">
+    <div class="section-title">送付書類（チェックして部数を選択）</div>
+
+    <div id="doc-list">
+      <div class="doc-card" onclick="toggleCard(this)">
+        <div class="doc-top">
+          <input type="checkbox" data-doc="一般廃棄物収集運搬契約書" data-return="1" data-carbon="1">
+          <span class="doc-name">一般廃棄物収集運搬契約書（カーボン複写式）</span>
+          <input type="number" class="doc-qty" value="1" min="1" max="20" onclick="event.stopPropagation()">
+          <span class="doc-qty-label">組</span>
+        </div>
+        <div class="doc-note-row">
+          <input type="text" class="doc-note-input" placeholder="備考（例: 物件名など）" onclick="event.stopPropagation()">
+        </div>
+      </div>
+      <div class="doc-card" onclick="toggleCard(this)">
+        <div class="doc-top">
+          <input type="checkbox" data-doc="産業廃棄物収集運搬委託契約書（処分用）" data-return="1" data-carbon="0">
+          <span class="doc-name">産廃 契約書（処分用）</span>
+          <input type="number" class="doc-qty" value="2" min="1" max="20" onclick="event.stopPropagation()">
+          <span class="doc-qty-label">部</span>
+        </div>
+        <div class="doc-note-row">
+          <input type="text" class="doc-note-input" placeholder="備考（例: 物件名など）" onclick="event.stopPropagation()">
+        </div>
+      </div>
+      <div class="doc-card" onclick="toggleCard(this)">
+        <div class="doc-top">
+          <input type="checkbox" data-doc="産業廃棄物収集運搬委託契約書（収集・運搬用）" data-return="1" data-carbon="0">
+          <span class="doc-name">産廃 契約書（収集・運搬用）</span>
+          <input type="number" class="doc-qty" value="2" min="1" max="20" onclick="event.stopPropagation()">
+          <span class="doc-qty-label">部</span>
+        </div>
+        <div class="doc-note-row">
+          <input type="text" class="doc-note-input" placeholder="備考（例: 物件名など）" onclick="event.stopPropagation()">
+        </div>
+      </div>
+      <div class="doc-card" onclick="toggleCard(this)">
+        <div class="doc-top">
+          <input type="checkbox" data-doc="口座振替用紙" data-return="3" data-carbon="0">
+          <span class="doc-name">口座振替用紙</span>
+          <input type="number" class="doc-qty" value="1" min="1" max="20" onclick="event.stopPropagation()">
+          <span class="doc-qty-label">部</span>
+        </div>
+        <div class="doc-note-row">
+          <input type="text" class="doc-note-input" placeholder="備考" onclick="event.stopPropagation()">
+        </div>
+      </div>
+      <div class="doc-card" onclick="toggleCard(this)">
+        <div class="doc-top">
+          <input type="checkbox" data-doc="御見積書" data-return="0" data-carbon="0">
+          <span class="doc-name">御見積書</span>
+          <input type="number" class="doc-qty" value="1" min="1" max="20" onclick="event.stopPropagation()">
+          <span class="doc-qty-label">部</span>
+        </div>
+        <div class="doc-note-row">
+          <input type="text" class="doc-note-input" placeholder="備考（例: 物件名など）" onclick="event.stopPropagation()">
+        </div>
+      </div>
+      <div class="doc-card" onclick="toggleCard(this)">
+        <div class="doc-top">
+          <input type="checkbox" data-doc="返送用封筒" data-return="0" data-carbon="0">
+          <span class="doc-name">返送用封筒</span>
+          <input type="number" class="doc-qty" value="1" min="1" max="20" onclick="event.stopPropagation()">
+          <span class="doc-qty-label">部</span>
+        </div>
+        <div class="doc-note-row">
+          <input type="text" class="doc-note-input" placeholder="備考" onclick="event.stopPropagation()">
+        </div>
+      </div>
+    </div>
+
+    <div class="doc-custom">
+      <label style="font-size:13px; font-weight:bold; color:#555;">その他の書類（1行に1つ）</label>
+      <textarea id="f-custom-docs" style="height:50px; font-size:14px;" placeholder="例: 許可証の写し"></textarea>
+    </div>
+
+    <label class="return-toggle">
+      <input type="checkbox" id="f-return-toggle" checked>
+      <span>返送をお願いする書類欄を表示する</span>
+    </label>
+
+    <div id="return-deadline-row">
+      <div class="form-group">
+        <label>返送期日 ※任意</label>
+        <input type="date" id="f-return-deadline">
+      </div>
+    </div>
+  </div>
+
+  <!-- MEMO -->
+  <div class="section-title">MEMO</div>
+  <div class="form-group">
+    <textarea id="f-memo" placeholder="例:&#10;お世話になっております。&#10;ご確認よろしくお願いいたします。"></textarea>
+  </div>
+
+  <div class="form-group">
+    <label>送付枚数（送付状含む）</label>
+    <input type="number" id="f-pages" value="2" min="1" max="99">
+  </div>
+
+  <button class="btn" onclick="showPreview()">プレビュー / 印刷</button>
+</div>
+
+<!-- === プレビューボタン === -->
+<div class="preview-buttons">
+  <button class="btn" onclick="window.print()">印刷する</button>
+  <button class="btn btn-secondary" onclick="backToForm()">戻って修正</button>
+</div>
+
+<!-- === 印刷エリア === -->
+<div class="print-area" id="print-area">
+  <div class="content-main">
+    <div class="title-line" id="p-title"></div>
+    <div class="date-line" id="p-date"></div>
+
+    <div class="recipient-block">
+      <div class="sub" id="p-fax-line"></div>
+      <div class="name" id="p-recipient"></div>
+      <div class="sub" id="p-person-line"></div>
+    </div>
+
+    <div class="sender-block">
+      〒546-0032　大阪市東住吉区東田辺3-26-31<br>
+      <span class="co">大 泉 衛 生 株 式 会 社</span><br>
+      TEL 06-6696-6789 ／ FAX 06-6696-0234<br>
+      ﾒｰﾙ d-daisen@aurora.ocn.ne.jp　　担当：<span id="p-tantou"></span>
+    </div>
+
+    <div class="greeting-text">拝啓　平素よりご高配賜り、誠に有難うございます。</div>
+    <div class="body-text" id="p-body-text"></div>
+
+    <!-- 送付書類一覧 -->
+    <div id="p-doc-section" class="hidden">
+      <div class="ki">記</div>
+      <table>
+        <thead>
+          <tr><th class="col-doc">送付書類</th><th class="col-qty">部数</th><th class="col-note">備考</th></tr>
+        </thead>
+        <tbody id="p-doc-tbody"></tbody>
+      </table>
+      <div class="ijou">以上</div>
+    </div>
+
+    <!-- 返送依頼 -->
+    <div id="p-return-section" class="hidden">
+      <div class="return-box">
+        <div class="return-title">ご返送をお願いする書類</div>
+        <table>
+          <thead>
+            <tr><th class="col-doc">書類名</th><th class="col-qty">部数</th><th class="col-note">備考</th></tr>
+          </thead>
+          <tbody id="p-return-tbody"></tbody>
+        </table>
+        <div class="return-deadline" id="p-return-deadline"></div>
+        <div class="return-note">※ ご署名・ご捺印（ご記入）の上、同封の返送用封筒にてご返送くださいますようお願い申し上げます。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MEMO（flex伸縮で下の空白を埋める） -->
+  <div class="content-memo" id="p-memo-section">
+    <div class="sep"></div>
+    <div class="memo-title">■ MEMO</div>
+    <div class="memo-body" id="p-memo"></div>
+  </div>
+
+  <div class="content-footer">
+    <div class="page-count">送付枚数　<span id="p-pages"></span>　枚（本書含む）</div>
+    <div class="footer-line"></div>
+  </div>
+</div>
+
+<script>
+  document.getElementById('f-date').value = new Date().toISOString().split('T')[0];
+  let currentTab = 'fax';
+
+  function toggleCard(card) {
+    const cb = card.querySelector('input[type="checkbox"]');
+    cb.checked = !cb.checked;
+    card.classList.toggle('checked', cb.checked);
+  }
+
+  function switchTab(tab) {
+    currentTab = tab;
+    document.querySelectorAll('.tab-bar button').forEach((btn, i) => {
+      btn.classList.toggle('active', (i === 0 && tab === 'fax') || (i === 1 && tab === 'soufu'));
+    });
+    document.getElementById('fax-fields').classList.toggle('hidden', tab !== 'fax');
+    document.getElementById('soufu-fields').classList.toggle('hidden', tab !== 'soufu');
+  }
+
+  function showPreview() {
+    const date = document.getElementById('f-date').value;
+    const company = document.getElementById('f-company').value;
+    const person = document.getElementById('f-person').value;
+    const keisho = document.getElementById('f-keisho').value;
+    const fax = document.getElementById('f-fax').value;
+    const tantou = document.getElementById('f-tantou').value;
+    const bukken = document.getElementById('f-bukken').value;
+    const memo = document.getElementById('f-memo').value;
+    const pages = document.getElementById('f-pages').value;
+    const showReturn = document.getElementById('f-return-toggle').checked;
+    const returnDeadline = document.getElementById('f-return-deadline').value;
+    const isFax = currentTab === 'fax';
+
+    if (!company) { alert('送付先（会社名）を入力してください'); return; }
+
+    const d = new Date(date);
+    const dateStr = `${d.getFullYear()}年　${d.getMonth()+1}月　${d.getDate()}日`;
+
+    document.getElementById('p-title').textContent = isFax ? 'FAX 送信案内' : '書類送付のご案内';
+    document.getElementById('p-date').textContent = dateStr;
+
+    if (person && keisho === '様') {
+      document.getElementById('p-recipient').textContent = company;
+      document.getElementById('p-person-line').textContent = person;
+    } else {
+      document.getElementById('p-recipient').textContent = company + '　' + keisho;
+      document.getElementById('p-person-line').textContent = person || '';
+    }
+    document.getElementById('p-fax-line').textContent = (isFax && fax) ? 'FAX: ' + fax : '';
+    document.getElementById('p-tantou').textContent = tantou;
+
+    document.getElementById('p-body-text').textContent = isFax
+      ? '下記の通り、書類をFAX送信致します。'
+      : '下記の通り、書類を送付致しますので、ご査収くださいますようお願い申し上げます。';
+
+    const docSection = document.getElementById('p-doc-section');
+    const returnSection = document.getElementById('p-return-section');
+    const memoSection = document.getElementById('p-memo-section');
+
+    if (!isFax) {
+      const sendDocs = [];
+      const returnDocs = [];
+      const cards = document.querySelectorAll('#doc-list .doc-card');
+
+      cards.forEach(card => {
+        const cb = card.querySelector('input[type="checkbox"]');
+        if (!cb.checked) return;
+
+        let docName = cb.dataset.doc;
+        const qty = card.querySelector('.doc-qty').value;
+        const unit = card.querySelector('.doc-qty-label').textContent;
+        const returnType = cb.dataset.return; // 0=なし, 1=署名捺印, 3=記入押印
+        const isCarbon = cb.dataset.carbon === '1';
+        const noteInput = card.querySelector('.doc-note-input');
+        const noteText = noteInput ? noteInput.value.trim() : '';
+
+        // 物件名を先頭に付与
+        if (bukken && (docName.includes('契約書') || docName === '御見積書')) {
+          docName = bukken + '　' + docName;
+        }
+
+        // 部数表記
+        let qtyStr = qty + unit;
+        if (isCarbon) {
+          qtyStr = qty + '組（複写式）';
+        }
+
+        // 備考欄
+        let printNote = noteText;
+
+        sendDocs.push({ name: docName, qty: qtyStr, note: printNote });
+
+        if (returnType === '1') {
+          returnDocs.push({ name: docName, qty: '1部', note: '署名・捺印' });
+        } else if (returnType === '3') {
+          returnDocs.push({ name: docName, qty: '1部', note: '記入・押印' });
+        }
+      });
+
+      const customText = document.getElementById('f-custom-docs').value.trim();
+      if (customText) {
+        customText.split('\n').forEach(line => {
+          line = line.trim();
+          if (line) sendDocs.push({ name: line, qty: '1部', note: '' });
+        });
+      }
+
+      // 送付書類テーブル
+      const tbody = document.getElementById('p-doc-tbody');
+      tbody.innerHTML = '';
+      sendDocs.forEach(doc => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${doc.name}</td><td class="qty">${doc.qty}</td><td class="note">${doc.note || ''}</td>`;
+        tbody.appendChild(tr);
+      });
+      docSection.classList.remove('hidden');
+
+      // 返送セクション
+      if (showReturn && returnDocs.length > 0) {
+        const rtbody = document.getElementById('p-return-tbody');
+        rtbody.innerHTML = '';
+        returnDocs.forEach(doc => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td>${doc.name}</td><td class="qty">${doc.qty}</td><td class="note">${doc.note}</td>`;
+          rtbody.appendChild(tr);
+        });
+        // 返送期日
+        const deadlineEl = document.getElementById('p-return-deadline');
+        if (returnDeadline) {
+          const rd = new Date(returnDeadline);
+          deadlineEl.textContent = `返送期日：${rd.getFullYear()}年${rd.getMonth()+1}月${rd.getDate()}日`;
+        } else {
+          deadlineEl.textContent = '';
+        }
+        returnSection.classList.remove('hidden');
+      } else {
+        returnSection.classList.add('hidden');
+      }
+    } else {
+      docSection.classList.add('hidden');
+      returnSection.classList.add('hidden');
+    }
+
+    if (memo) {
+      document.getElementById('p-memo').textContent = memo;
+      memoSection.classList.remove('hidden');
+    } else if (isFax) {
+      document.getElementById('p-memo').textContent = '';
+      memoSection.classList.remove('hidden');
+    } else {
+      memoSection.classList.add('hidden');
+    }
+
+    document.getElementById('p-pages').textContent = pages;
+    document.body.classList.add('preview-mode');
+  }
+
+  function backToForm() {
+    document.body.classList.remove('preview-mode');
+  }
+</script>
+</body>
+</html>
