@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>定期ごみ収集のお見積り｜大泉衛生</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚛</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--g:#1a3a2a;--g2:#2d5a3f;--accent:#4caf50;--bg:#f7f6f1;--card:#fff;--r:#e74c3c;--shadow:0 2px 16px rgba(0,0,0,0.07)}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"Noto Sans JP",sans-serif;background:var(--bg);color:#333;min-height:100vh;-webkit-text-size-adjust:100%}
+input,select,textarea,button{font-family:inherit;font-size:16px}
+.header{background:linear-gradient(135deg,var(--g) 0%,var(--g2) 100%);color:#fff;padding:32px 20px 28px;text-align:center;position:relative;overflow:hidden}
+.header::after{content:"";position:absolute;bottom:-20px;left:-10%;width:120%;height:50px;background:var(--bg);border-radius:50% 50% 0 0}
+.header .logo{font-size:12px;opacity:.7;letter-spacing:3px;margin-bottom:4px}
+.header h1{font-size:22px;font-weight:900;letter-spacing:1px}
+.header .sub{font-size:13px;opacity:.85;margin-top:6px;line-height:1.6}
+.progress-wrap{padding:20px 20px 0;display:flex;gap:6px;align-items:center}
+.progress-dot{width:100%;height:5px;border-radius:3px;background:#ddd;transition:background .4s}
+.progress-dot.active{background:var(--accent)}
+.progress-dot.done{background:var(--g)}
+.step-label{text-align:center;font-size:12px;color:#999;padding:6px 0 0;font-weight:500}
+.container{padding:16px 20px 120px;max-width:480px;margin:0 auto}
+.card{background:var(--card);border-radius:16px;padding:24px 20px;box-shadow:var(--shadow);margin-bottom:16px;animation:fadeUp .4s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.card .q-num{display:inline-block;background:var(--g);color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;margin-bottom:10px}
+.card .q-title{font-size:17px;font-weight:700;color:var(--g);margin-bottom:4px;line-height:1.5}
+.card .q-hint{font-size:12px;color:#999;margin-bottom:14px;line-height:1.5}
+.card .required{color:var(--r);font-size:11px;font-weight:700;margin-left:6px;background:#ffeaea;padding:1px 6px;border-radius:4px}
+.inp{width:100%;padding:14px 16px;border:2px solid #e0e0e0;border-radius:12px;font-size:16px;background:#fafafa;transition:border .2s,box-shadow .2s;-webkit-appearance:none}
+.inp:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(76,175,80,.15);background:#fff}
+.inp::placeholder{color:#bbb}
+.select-wrap{position:relative}
+.select-wrap select{appearance:none;-webkit-appearance:none;padding-right:40px}
+.select-wrap::after{content:"▼";position:absolute;right:16px;top:50%;transform:translateY(-50%);font-size:10px;color:#999;pointer-events:none}
+.tile-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tile-grid.single{grid-template-columns:1fr}
+.tile{display:flex;align-items:center;gap:10px;padding:14px 16px;border:2px solid #e8e8e0;border-radius:12px;cursor:pointer;transition:all .2s;background:#fafaf6;user-select:none;-webkit-tap-highlight-color:transparent}
+.tile:active{transform:scale(.97)}
+.tile.selected{border-color:var(--accent);background:#e8f5e9;box-shadow:0 0 0 2px rgba(76,175,80,.2)}
+.tile .icon{font-size:20px;flex-shrink:0}
+.tile .text{font-size:13px;font-weight:500;line-height:1.3}
+.tile input{display:none}
+.addr-row{display:flex;gap:8px;margin-bottom:10px}
+.addr-row > div{flex:1}
+.addr-label{font-size:11px;color:#888;font-weight:500;margin-bottom:4px;display:block}
+.footer-nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #eee;padding:12px 20px;display:flex;gap:10px;z-index:100;box-shadow:0 -2px 12px rgba(0,0,0,.06)}
+.btn{flex:1;padding:16px;border:none;border-radius:14px;font-size:16px;font-weight:700;cursor:pointer;transition:all .2s;text-align:center}
+.btn:active{transform:scale(.97)}
+.btn-back{background:#f0f0f0;color:#666}
+.btn-next{background:var(--g);color:#fff}
+.btn-next:disabled{background:#ccc;color:#fff}
+.btn-submit{background:var(--accent);color:#fff;font-size:17px}
+.confirm-row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f0f0f0;font-size:14px}
+.confirm-row .label{color:#888;font-weight:500}
+.confirm-row .value{font-weight:600;text-align:right;max-width:60%;word-break:break-all}
+.complete{text-align:center;padding:40px 20px}
+.complete .check{font-size:64px;margin-bottom:16px}
+.complete h2{font-size:22px;font-weight:900;color:var(--g);margin-bottom:8px}
+.complete p{font-size:14px;color:#888;line-height:1.7}
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:var(--r);color:#fff;padding:10px 20px;border-radius:10px;font-size:13px;font-weight:600;z-index:200;animation:toastIn .3s ease}
+@keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(-10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<script type="text/babel">
+const {useState, useEffect} = React;
+
+const GYOSHU = [
+  {v:"マンション・アパート",icon:"🏢"},{v:"飲食店",icon:"🍽"},{v:"オフィス・事務所",icon:"🏬"},
+  {v:"民泊・ホテル",icon:"🏠"},{v:"学校・保育施設",icon:"🏫"},{v:"クリニック・病院",icon:"🏥"},
+  {v:"美容室・サロン",icon:"💇"},{v:"その他",icon:"📋"},
+];
+
+const ROOM_TYPES = [
+  {v:"1R・1K中心",icon:"🚪"},{v:"1LDK〜2LDK中心",icon:"🛋"},
+  {v:"3LDK以上中心",icon:"🏠"},{v:"混在・不明",icon:"❓"},
+];
+
+const INSHOKU_TYPES = [
+  {v:"居酒屋・バー",icon:"🍺"},{v:"レストラン・食堂",icon:"🍝"},
+  {v:"カフェ・喫茶",icon:"☕"},{v:"ラーメン・中華",icon:"🍜"},
+  {v:"焼肉",icon:"🥩"},{v:"焼鳥",icon:"🍗"},
+  {v:"弁当・惣菜・テイクアウト",icon:"🍱"},{v:"パン・スイーツ",icon:"🍰"},
+  {v:"その他飲食",icon:"🍽"},
+];
+
+const FREQ = [
+  {v:"週6回（月〜土）",icon:"📅",hint:"一番人気"},
+  {v:"その他（入力）",icon:"✏️",hint:""},
+];
+
+const PLACE = [
+  {v:"建物出入口付近（トラック通行可）",icon:"🚛"},
+  {v:"建物出入口から離れた場所",icon:"🏠"},
+  {v:"よくわからない・相談したい",icon:"💬"},
+];
+
+const EXTRAS = [
+  {v:"ダンボール",icon:"📦"},{v:"古紙・シュレッダー",icon:"📄"},
+  {v:"ビン・カン・ペットボトル",icon:"🥫"},{v:"プラスチック類",icon:"♻️"},
+  {v:"粗大ごみ（スポット）",icon:"🛋"},{v:"なし・未定",icon:"➖"},
+];
+
+function Tile({item, selected, onClick, type}) {
+  const sel = type==="check" ? (selected||[]).includes(item.v) : selected===item.v;
+  return (
+    <div className={"tile"+(sel?" selected":"")} onClick={() => onClick(item.v)}>
+      <span className="icon">{item.icon}</span>
+      <div>
+        <div className="text">{item.v}</div>
+        {item.hint && <div style={{fontSize:"10px",color:"#4caf50",fontWeight:700,marginTop:2}}>{item.hint}</div>}
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [step, setStep] = useState(0);
+  const [toast, setToast] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [d, setD] = useState({
+    gyoshu:"", gyoshuOther:"",
+    kosu:"", roomType:"",
+    inshokuType:"", inshokuOther:"",
+    minpakuKosu:"", minpakuRoom:"", minpakuType:"",
+    freqOther:"",
+    addr:"", building:"",
+    tel:"",
+    freq:"",
+    place:"",
+    extras:[],
+    note:"",
+    name:"", company:"",
+  });
+  const set = (k,v) => setD(p=>({...p,[k]:v}));
+  const toggleExtra = v => {
+    if(v==="なし・未定"){set("extras",["なし・未定"]);return;}
+    setD(p=>{
+      let ex = p.extras.filter(e=>e!=="なし・未定");
+      return {...p, extras: ex.includes(v)?ex.filter(e=>e!==v):[...ex,v]};
+    });
+  };
+
+  const STEPS = 6;
+  const showToast = msg => { setToast(msg); setTimeout(()=>setToast(""),2500); };
+
+  const canNext = () => {
+    if(step===0) {
+      if(d.gyoshu==="") return false;
+      if(d.gyoshu==="その他" && d.gyoshuOther.trim()==="") return false;
+      if(d.gyoshu==="マンション・アパート" && (d.kosu.trim()==="" || d.roomType==="")) return false;
+      if(d.gyoshu==="飲食店" && (d.inshokuType==="" || (d.inshokuType==="その他飲食" && d.inshokuOther.trim()===""))) return false;
+      if(d.gyoshu==="民泊・ホテル" && (d.minpakuType==="" || (d.minpakuType!=="戸建" && (d.minpakuKosu.trim()==="" || d.minpakuRoom.trim()==="")))) return false;
+      return true;
+    }
+    if(step===1) return d.addr.trim()!=="";
+    if(step===2) return d.tel.trim()!=="";
+    if(step===3) return d.freq!=="" && (d.freq!=="その他（入力）" || d.freqOther.trim()!=="");
+    if(step===4) return d.place!=="";
+    return true;
+  };
+
+  const next = () => {
+    if(!canNext()){showToast("入力してください");return;}
+    if(step < STEPS) setStep(step+1);
+  };
+  const back = () => { if(step>0) setStep(step-1); };
+
+  // ★★★ デプロイ後のURLに差し替えてください ★★★
+  const GAS_URL = "https://script.google.com/macros/s/AKfycbzyhzb_-DGB_Mwkbgopt4o5XPbIIXNsFJl46swLHzG-ULmko1oamn8X6G-moiyTpkuz/exec";
+
+  const submit = () => {
+    setSubmitting(true);
+    let detail = "";
+    if(d.gyoshu==="マンション・アパート") detail = "総戸数:"+d.kosu+"戸 "+d.roomType;
+    if(d.gyoshu==="飲食店") detail = d.inshokuType+(d.inshokuOther?" ("+d.inshokuOther+")":"");
+    if(d.gyoshu==="民泊・ホテル") detail = d.minpakuType+(d.minpakuType!=="戸建"?" "+d.minpakuKosu+"室 "+d.minpakuRoom:"");
+    if(d.gyoshu==="その他") detail = d.gyoshuOther;
+
+    const payload = {
+      gyoshu: d.gyoshu, detail: detail,
+      addr: d.addr, building: d.building,
+      tel: d.tel, name: d.name, company: d.company,
+      freq: d.freq==="その他（入力）"?d.freqOther:d.freq,
+      place: d.place,
+      extras: d.extras.length?d.extras.join("、"):"なし",
+      note: d.note,
+    };
+
+    // ★ 改修ポイント：確実にGASにデータを届ける送信方式
+    // POST送信を試み、失敗したらGETでフォールバック
+    fetch(GAS_URL, {
+      method: "POST",
+      body: JSON.stringify(payload),
+      redirect: "follow",
+    }).then(res => {
+      setStep(STEPS+1); setSubmitting(false);
+    }).catch(() => {
+      // フォールバック：GETパラメータで送信
+      var params = encodeURIComponent(JSON.stringify(payload));
+      fetch(GAS_URL + "?data=" + params, {mode: "no-cors"})
+        .finally(() => {
+          setStep(STEPS+1); setSubmitting(false);
+        });
+    });
+  };
+
+  const Header = () => (
+    <div className="header">
+      <div className="logo">大泉衛生株式会社</div>
+      <h1>定期ごみ収集のお見積り</h1>
+      <div className="sub">最短30秒で完了！<br/>お気軽にお問い合わせください</div>
+    </div>
+  );
+
+  const Progress = () => (
+    <>
+    <div className="progress-wrap">
+      {Array(STEPS).fill(0).map((_,i) => (
+        <div key={i} className={"progress-dot"+(i<step?" done":"")+(i===step?" active":"")} />
+      ))}
+    </div>
+    <div className="step-label">ステップ {step+1} / {STEPS}</div>
+    </>
+  );
+
+  if(step > STEPS) return (
+    <div>
+      <Header />
+      <div className="container">
+        <div className="complete">
+          <div className="check">✅</div>
+          <h2>送信ありがとうございます！</h2>
+          <p>内容を確認のうえ、担当者より<br/>お見積りをお送りいたします。<br/><br/>
+          通常 <b>翌営業日まで</b> にご連絡します。<br/>
+          お急ぎの場合は下記までお電話ください。</p>
+          <a href="tel:0666966789" style={{display:"inline-block",marginTop:20,background:"var(--g)",color:"#fff",padding:"14px 28px",borderRadius:12,fontSize:16,fontWeight:700,textDecoration:"none"}}>📞 06-6696-6789</a>
+        </div>
+      </div>
+    </div>
+  );
+
+  if(step === STEPS) return (
+    <div>
+      <Header />
+      <div className="container">
+        <div className="card">
+          <div className="q-num">確認</div>
+          <div className="q-title">入力内容をご確認ください</div>
+          <div className="q-hint">間違いがなければ「送信する」を押してください</div>
+          <div style={{marginTop:12}}>
+            <div className="confirm-row"><span className="label">業種</span><span className="value">{d.gyoshu}{d.gyoshuOther?" ("+d.gyoshuOther+")":""}</span></div>
+            {d.gyoshu==="マンション・アパート" && <>
+              <div className="confirm-row"><span className="label">総戸数</span><span className="value">{d.kosu}戸</span></div>
+              <div className="confirm-row"><span className="label">部屋タイプ</span><span className="value">{d.roomType}</span></div>
+            </>}
+            {d.gyoshu==="飲食店" && <div className="confirm-row"><span className="label">飲食店の種類</span><span className="value">{d.inshokuType}{d.inshokuOther?" ("+d.inshokuOther+")":""}</span></div>}
+            {d.gyoshu==="民泊・ホテル" && <>
+              <div className="confirm-row"><span className="label">物件タイプ</span><span className="value">{d.minpakuType}</span></div>
+              {d.minpakuType!=="戸建" && <>
+                <div className="confirm-row"><span className="label">部屋数</span><span className="value">{d.minpakuKosu}室</span></div>
+                <div className="confirm-row"><span className="label">部屋の広さ</span><span className="value">{d.minpakuRoom}</span></div>
+              </>}
+            </>}
+            <div className="confirm-row"><span className="label">住所</span><span className="value">{d.addr}{d.building?" "+d.building:""}</span></div>
+            <div className="confirm-row"><span className="label">電話番号</span><span className="value">{d.tel}</span></div>
+            <div className="confirm-row"><span className="label">回収頻度</span><span className="value">{d.freq==="その他（入力）"?d.freqOther:d.freq}</span></div>
+            <div className="confirm-row"><span className="label">ごみ置き場</span><span className="value">{d.place}</span></div>
+            <div className="confirm-row"><span className="label">その他品目</span><span className="value">{d.extras.length?d.extras.join("、"):"なし"}</span></div>
+            {d.note && <div className="confirm-row"><span className="label">備考</span><span className="value">{d.note}</span></div>}
+            {d.name && <div className="confirm-row"><span className="label">お名前</span><span className="value">{d.name}</span></div>}
+            {d.company && <div className="confirm-row"><span className="label">会社名</span><span className="value">{d.company}</span></div>}
+          </div>
+        </div>
+      </div>
+      {toast && <div className="toast">{toast}</div>}
+      <div className="footer-nav">
+        <button className="btn btn-back" onClick={back}>← 戻る</button>
+        <button className="btn btn-submit" onClick={submit} disabled={submitting}>{submitting ? "⏳ 送信中..." : "📩 送信する"}</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div>
+      <Header />
+      {step <= STEPS-1 && <Progress />}
+      <div className="container">
+        {toast && <div className="toast">{toast}</div>}
+
+        {step===0 && (
+          <div className="card">
+            <div className="q-num">Q1</div>
+            <div className="q-title">事業所の種類は？<span className="required">必須</span></div>
+            <div className="q-hint">一番近いものを選んでください</div>
+            <div className="tile-grid">
+              {GYOSHU.map(g => <Tile key={g.v} item={g} selected={d.gyoshu} onClick={v => set("gyoshu",v)} />)}
+            </div>
+            {d.gyoshu==="その他" && (
+              <div style={{marginTop:12}}>
+                <input className="inp" placeholder="業種を入力してください" value={d.gyoshuOther} onChange={e=>set("gyoshuOther",e.target.value)} />
+              </div>
+            )}
+            {d.gyoshu==="マンション・アパート" && (
+              <div style={{marginTop:16,background:"#f0faf0",borderRadius:12,padding:16,border:"1px solid #c8e6c9"}}>
+                <div style={{fontSize:14,fontWeight:700,color:"var(--g)",marginBottom:10}}>🏢 マンション・アパートの詳細</div>
+                <div style={{marginBottom:12}}>
+                  <div style={{fontSize:12,color:"#888",fontWeight:500,marginBottom:4}}>総戸数<span className="required">必須</span></div>
+                  <input className="inp" type="number" inputMode="numeric" placeholder="例：24" value={d.kosu} onChange={e=>set("kosu",e.target.value)} />
+                </div>
+                <div>
+                  <div style={{fontSize:12,color:"#888",fontWeight:500,marginBottom:6}}>部屋タイプ<span className="required">必須</span></div>
+                  <div className="tile-grid">
+                    {ROOM_TYPES.map(r => <Tile key={r.v} item={r} selected={d.roomType} onClick={v => set("roomType",v)} />)}
+                  </div>
+                </div>
+              </div>
+            )}
+            {d.gyoshu==="飲食店" && (
+              <div style={{marginTop:16,background:"#fff8f0",borderRadius:12,padding:16,border:"1px solid #ffe0b2"}}>
+                <div style={{fontSize:14,fontWeight:700,color:"#e65100",marginBottom:10}}>🍽 飲食店の種類<span className="required">必須</span></div>
+                <div className="tile-grid">
+                  {INSHOKU_TYPES.map(t => <Tile key={t.v} item={t} selected={d.inshokuType} onClick={v => set("inshokuType",v)} />)}
+                </div>
+                {d.inshokuType==="その他飲食" && (
+                  <div style={{marginTop:10}}>
+                    <input className="inp" placeholder="飲食店の種類を入力してください" value={d.inshokuOther} onChange={e=>set("inshokuOther",e.target.value)} />
+                  </div>
+                )}
+              </div>
+            )}
+            {d.gyoshu==="民泊・ホテル" && (
+              <div style={{marginTop:16,background:"#f0f4fa",borderRadius:12,padding:16,border:"1px solid #bbdefb"}}>
+                <div style={{fontSize:14,fontWeight:700,color:"#1565c0",marginBottom:10}}>🏠 民泊・ホテルの詳細</div>
+                <div style={{marginBottom:12}}>
+                  <div style={{fontSize:12,color:"#888",fontWeight:500,marginBottom:6}}>物件タイプ<span className="required">必須</span></div>
+                  <div className="tile-grid">
+                    <Tile item={{v:"民泊",icon:"🏠"}} selected={d.minpakuType} onClick={v=>set("minpakuType",v)} />
+                    <Tile item={{v:"ホテル・旅館",icon:"🏨"}} selected={d.minpakuType} onClick={v=>set("minpakuType",v)} />
+                    <Tile item={{v:"戸建",icon:"🏡"}} selected={d.minpakuType} onClick={v=>set("minpakuType",v)} />
+                  </div>
+                </div>
+                {d.minpakuType && d.minpakuType!=="戸建" && (<>
+                <div style={{marginBottom:12}}>
+                  <div style={{fontSize:12,color:"#888",fontWeight:500,marginBottom:4}}>部屋数（総戸数）<span className="required">必須</span></div>
+                  <input className="inp" type="number" inputMode="numeric" placeholder="例：8" value={d.minpakuKosu} onChange={e=>set("minpakuKosu",e.target.value)} />
+                </div>
+                <div>
+                  <div style={{fontSize:12,color:"#888",fontWeight:500,marginBottom:4}}>部屋の広さ（目安）<span className="required">必須</span></div>
+                  <input className="inp" placeholder="例：1R中心、30㎡前後 など" value={d.minpakuRoom} onChange={e=>set("minpakuRoom",e.target.value)} />
+                </div>
+                </>)}
+              </div>
+            )}
+          </div>
+        )}
+
+        {step===1 && (
+          <div className="card">
+            <div className="q-num">Q2</div>
+            <div className="q-title">収集場所の住所は？<span className="required">必須</span></div>
+            <div className="q-hint">ごみを回収する場所の住所を入力してください</div>
+            <div style={{marginBottom:10}}>
+              <input className="inp" placeholder="例：大阪市中央区本町1-2-3" value={d.addr} onChange={e=>set("addr",e.target.value)} />
+            </div>
+            <div>
+              <input className="inp" placeholder="建物名・部屋番号（任意）" value={d.building} onChange={e=>set("building",e.target.value)} />
+            </div>
+          </div>
+        )}
+
+        {step===2 && (
+          <div className="card">
+            <div className="q-num">Q3</div>
+            <div className="q-title">電話番号を教えてください<span className="required">必須</span></div>
+            <div className="q-hint">お見積りのご連絡先です</div>
+            <input className="inp" type="tel" inputMode="tel" placeholder="例：06-1234-5678" value={d.tel} onChange={e=>set("tel",e.target.value)} />
+            <div style={{marginTop:16}}>
+              <div className="q-hint" style={{marginBottom:6}}>お名前・会社名（任意）</div>
+              <div style={{display:"flex",gap:8}}>
+                <input className="inp" placeholder="お名前" value={d.name} onChange={e=>set("name",e.target.value)} style={{flex:1}} />
+                <input className="inp" placeholder="会社名" value={d.company} onChange={e=>set("company",e.target.value)} style={{flex:1}} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {step===3 && (
+          <div className="card">
+            <div className="q-num">Q4</div>
+            <div className="q-title">回収の頻度は？<span className="required">必須</span></div>
+            <div className="q-hint">ご希望の回収頻度を選んでください</div>
+            <div className="tile-grid single">
+              {FREQ.map(f => <Tile key={f.v} item={f} selected={d.freq} onClick={v => set("freq",v)} />)}
+            </div>
+            {d.freq==="その他（入力）" && (
+              <div style={{marginTop:12}}>
+                <input className="inp" placeholder="例：週3回、火・木・土 など" value={d.freqOther} onChange={e=>set("freqOther",e.target.value)} />
+              </div>
+            )}
+          </div>
+        )}
+
+        {step===4 && (
+          <div className="card">
+            <div className="q-num">Q5</div>
+            <div className="q-title">ごみ置き場の場所は？<span className="required">必須</span></div>
+            <div className="q-hint">車道からの距離を教えてください</div>
+            <div className="tile-grid single">
+              {PLACE.map(p => <Tile key={p.v} item={p} selected={d.place} onClick={v => set("place",v)} />)}
+            </div>
+          </div>
+        )}
+
+        {step===5 && (
+          <>
+          <div className="card">
+            <div className="q-num">Q6</div>
+            <div className="q-title">その他に回収してほしいものは？</div>
+            <div className="q-hint">あてはまるものをすべて選んでください（複数OK）</div>
+            <div className="tile-grid">
+              {EXTRAS.map(e => <Tile key={e.v} item={e} selected={d.extras} onClick={toggleExtra} type="check" />)}
+            </div>
+          </div>
+          <div className="card">
+            <div className="q-title">その他ご要望（任意）</div>
+            <textarea className="inp" rows="3" placeholder="ご質問やご要望があればご記入ください" value={d.note} onChange={e=>set("note",e.target.value)} style={{resize:"vertical",minHeight:80}} />
+          </div>
+          </>
+        )}
+      </div>
+
+      <div className="footer-nav">
+        {step > 0 && <button className="btn btn-back" onClick={back}>← 戻る</button>}
+        <button className="btn btn-next" onClick={next} disabled={!canNext()}>
+          {step < STEPS-1 ? "次へ →" : "確認画面へ →"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
