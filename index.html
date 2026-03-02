@@ -4,8 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>書類作成ツール - 大泉衛生</title>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 <style>
   * { box-sizing: border-box; }
   body {
@@ -634,7 +632,44 @@
     document.body.classList.remove('preview-mode');
   }
 
-  // === ライブラリ確認 ===
+  // === ライブラリ動的ローダー（複数CDNフォールバック） ===
+  let libsReady = false;
+
+  function loadScript(urls) {
+    return new Promise((resolve, reject) => {
+      let i = 0;
+      function tryNext() {
+        if (i >= urls.length) { reject(new Error('全CDNから読み込み失敗')); return; }
+        const s = document.createElement('script');
+        s.src = urls[i];
+        s.onload = resolve;
+        s.onerror = () => { i++; tryNext(); };
+        document.head.appendChild(s);
+      }
+      tryNext();
+    });
+  }
+
+  async function loadLibs() {
+    try {
+      await loadScript([
+        'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js',
+        'https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'
+      ]);
+      await loadScript([
+        'https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js',
+        'https://unpkg.com/jspdf@2.5.2/dist/jspdf.umd.min.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js'
+      ]);
+      libsReady = true;
+      console.log('PDF libraries loaded OK');
+    } catch(e) {
+      console.error('PDF library load failed:', e);
+    }
+  }
+  loadLibs();
+
   function getJsPDF() {
     if (window.jspdf && window.jspdf.jsPDF) return window.jspdf.jsPDF;
     if (window.jsPDF) return window.jsPDF;
@@ -643,10 +678,17 @@
 
   // === PDF生成 ===
   async function generatePDF() {
-    if (!getJsPDF() || typeof html2canvas === 'undefined') {
-      alert('PDFライブラリを読み込み中です。数秒待ってからもう一度お試しください。');
+    if (!libsReady) {
+      alert('PDFライブラリを読み込み中です。数秒待ってからもう一度押してください。');
+      loadLibs();
       return;
     }
+    const JsPDF = getJsPDF();
+    if (!JsPDF || typeof html2canvas === 'undefined') {
+      alert('PDFライブラリの読み込みに失敗しました。ページを再読み込みしてください。');
+      return;
+    }
+
     const btn = document.getElementById('btn-pdf');
     const overlay = document.getElementById('pdf-overlay');
     btn.disabled = true;
@@ -657,12 +699,9 @@
 
       // キャプチャ用に一時的にサイズ固定（スマホでも正確なA4比率）
       const origStyle = el.getAttribute('style') || '';
-      el.style.width = '794px';
-      el.style.height = '1123px';
-      el.style.overflow = 'hidden';
-      el.style.display = 'flex';
+      el.style.cssText = 'display:flex; width:794px; height:1123px; overflow:hidden; flex-direction:column; margin:0 auto; padding:45px 68px 38px; background:#fff; font-family:"Yu Mincho","Hiragino Mincho Pro","MS Mincho",serif; color:#000;';
 
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise(r => setTimeout(r, 200));
 
       const canvas = await html2canvas(el, {
         scale: 2,
@@ -670,17 +709,16 @@
         backgroundColor: '#ffffff',
         width: 794,
         height: 1123,
-        windowWidth: 794,
-        windowHeight: 1123,
+        windowWidth: 900,
+        windowHeight: 1200,
       });
 
       // スタイル復元
-      el.setAttribute('style', origStyle);
+      if (origStyle) { el.setAttribute('style', origStyle); }
+      else { el.removeAttribute('style'); }
 
       const imgData = canvas.toDataURL('image/jpeg', 0.95);
-      const JsPDF = getJsPDF();
       const pdf = new JsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-
       pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
 
       // ファイル名を生成
