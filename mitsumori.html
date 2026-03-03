@@ -156,7 +156,7 @@ function App() {
       if(d.gyoshu==="その他" && d.gyoshuOther.trim()==="") return false;
       if(d.gyoshu==="マンション・アパート" && (d.kosu.trim()==="" || d.roomType==="")) return false;
       if(d.gyoshu==="飲食店" && (d.inshokuType==="" || (d.inshokuType==="その他飲食" && d.inshokuOther.trim()===""))) return false;
-      if(d.gyoshu==="民泊・ホテル" && (d.minpakuType==="" || (d.minpakuType!=="戸建" && (d.minpakuKosu.trim()==="" || d.minpakuRoom.trim()==="")))) return false;
+      if(d.gyoshu==="民泊・ホテル" && (d.minpakuType==="" || (d.minpakuType!=="戸建て" && (d.minpakuKosu.trim()==="" || d.minpakuRoom.trim()==="")))) return false;
       return true;
     }
     if(step===1) return d.addr.trim()!=="";
@@ -180,7 +180,7 @@ function App() {
     let detail = "";
     if(d.gyoshu==="マンション・アパート") detail = "総戸数:"+d.kosu+"戸 "+d.roomType;
     if(d.gyoshu==="飲食店") detail = d.inshokuType+(d.inshokuOther?" ("+d.inshokuOther+")":"");
-    if(d.gyoshu==="民泊・ホテル") detail = d.minpakuType+(d.minpakuType!=="戸建"?" "+d.minpakuKosu+"室 "+d.minpakuRoom:"");
+    if(d.gyoshu==="民泊・ホテル") detail = d.minpakuType+(d.minpakuType!=="戸建て"?" "+d.minpakuKosu+"室 "+d.minpakuRoom:"");
     if(d.gyoshu==="その他") detail = d.gyoshuOther;
 
     const payload = {
@@ -263,7 +263,7 @@ function App() {
             {d.gyoshu==="飲食店" && <div className="confirm-row"><span className="label">飲食店の種類</span><span className="value">{d.inshokuType}{d.inshokuOther?" ("+d.inshokuOther+")":""}</span></div>}
             {d.gyoshu==="民泊・ホテル" && <>
               <div className="confirm-row"><span className="label">物件タイプ</span><span className="value">{d.minpakuType}</span></div>
-              {d.minpakuType!=="戸建" && <>
+              {d.minpakuType!=="戸建て" && <>
                 <div className="confirm-row"><span className="label">部屋数</span><span className="value">{d.minpakuKosu}室</span></div>
                 <div className="confirm-row"><span className="label">部屋の広さ</span><span className="value">{d.minpakuRoom}</span></div>
               </>}
@@ -341,12 +341,12 @@ function App() {
                 <div style={{marginBottom:12}}>
                   <div style={{fontSize:12,color:"#888",fontWeight:500,marginBottom:6}}>物件タイプ<span className="required">必須</span></div>
                   <div className="tile-grid">
-                    <Tile item={{v:"民泊",icon:"🏠"}} selected={d.minpakuType} onClick={v=>set("minpakuType",v)} />
+                    <Tile item={{v:"民泊（マンションタイプ）",icon:"🏠"}} selected={d.minpakuType} onClick={v=>set("minpakuType",v)} />
                     <Tile item={{v:"ホテル・旅館",icon:"🏨"}} selected={d.minpakuType} onClick={v=>set("minpakuType",v)} />
-                    <Tile item={{v:"戸建",icon:"🏡"}} selected={d.minpakuType} onClick={v=>set("minpakuType",v)} />
+                    <Tile item={{v:"戸建て",icon:"🏡"}} selected={d.minpakuType} onClick={v=>set("minpakuType",v)} />
                   </div>
                 </div>
-                {d.minpakuType && d.minpakuType!=="戸建" && (<>
+                {d.minpakuType && d.minpakuType!=="戸建て" && (<>
                 <div style={{marginBottom:12}}>
                   <div style={{fontSize:12,color:"#888",fontWeight:500,marginBottom:4}}>部屋数（総戸数）<span className="required">必須</span></div>
                   <input className="inp" type="number" inputMode="numeric" placeholder="例：8" value={d.minpakuKosu} onChange={e=>set("minpakuKosu",e.target.value)} />
