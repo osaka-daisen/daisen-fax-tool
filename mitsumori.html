@@ -21,7 +21,7 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
 .progress-dot.active{background:var(--accent)}
 .progress-dot.done{background:var(--g)}
 .step-label{text-align:center;font-size:12px;color:#999;padding:6px 0 0;font-weight:500}
-.container{padding:16px 20px 120px;max-width:480px;margin:0 auto}
+.container{padding:16px 20px 240px;max-width:480px;margin:0 auto}
 .card{background:var(--card);border-radius:16px;padding:24px 20px;box-shadow:var(--shadow);margin-bottom:16px;animation:fadeUp .4s ease}
 @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
 .card .q-num{display:inline-block;background:var(--g);color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;margin-bottom:10px}
@@ -61,6 +61,20 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
 .complete p{font-size:14px;color:#888;line-height:1.7}
 .toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:var(--r);color:#fff;padding:10px 20px;border-radius:10px;font-size:13px;font-weight:600;z-index:200;animation:toastIn .3s ease}
 @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(-10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+.file-upload-area{border:2px dashed #ccc;border-radius:12px;padding:20px;text-align:center;cursor:pointer;transition:all .2s;background:#fafaf6}
+.file-upload-area:hover,.file-upload-area.dragover{border-color:var(--accent);background:#e8f5e9}
+.file-upload-area .upload-icon{font-size:32px;margin-bottom:8px}
+.file-upload-area .upload-text{font-size:13px;color:#888;line-height:1.6}
+.file-upload-area .upload-btn{display:inline-block;margin-top:10px;background:var(--g2);color:#fff;padding:10px 20px;border-radius:10px;font-size:13px;font-weight:600}
+.file-list{margin-top:12px}
+.file-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#f5f5f0;border-radius:10px;margin-bottom:6px}
+.file-item .file-icon{font-size:20px;flex-shrink:0}
+.file-item .file-info{flex:1;min-width:0}
+.file-item .file-name{font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file-item .file-size{font-size:11px;color:#999}
+.file-item .file-remove{background:none;border:none;font-size:18px;color:#999;cursor:pointer;padding:4px 8px;border-radius:6px}
+.file-item .file-remove:hover{background:#eee;color:var(--r)}
+.file-thumb{width:40px;height:40px;border-radius:6px;object-fit:cover;flex-shrink:0}
 </style>
 </head>
 <body>
@@ -137,6 +151,7 @@ function App() {
     extras:[],
     note:"",
     name:"", company:"",
+    files:[],
   });
   const set = (k,v) => setD(p=>({...p,[k]:v}));
   const toggleExtra = v => {
@@ -146,6 +161,27 @@ function App() {
       return {...p, extras: ex.includes(v)?ex.filter(e=>e!==v):[...ex,v]};
     });
   };
+
+  const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+  const MAX_FILES = 3;
+  const ALLOWED_TYPES = ['image/jpeg','image/png','image/heic','image/heif','image/webp','application/pdf','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+
+  const handleFiles = (fileList) => {
+    const newFiles = Array.from(fileList);
+    const currentCount = d.files.length;
+    if(currentCount + newFiles.length > MAX_FILES){showToast("ファイルは最大"+MAX_FILES+"つまでです");return;}
+    newFiles.forEach(file => {
+      if(file.size > MAX_FILE_SIZE){showToast(file.name+" は10MBを超えています");return;}
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        setD(p => ({...p, files: [...p.files, {name: file.name, size: file.size, type: file.type, data: ev.target.result}]}));
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+  const removeFile = (idx) => setD(p => ({...p, files: p.files.filter((_,i) => i !== idx)}));
+  const formatSize = (bytes) => bytes < 1024*1024 ? Math.round(bytes/1024)+"KB" : (bytes/1024/1024).toFixed(1)+"MB";
+  const fileIcon = (type) => type.startsWith("image/")?"📷":type.includes("pdf")?"📄":type.includes("sheet")?"📊":"📎";
 
   const STEPS = 6;
   const showToast = msg => { setToast(msg); setTimeout(()=>setToast(""),2500); };
@@ -193,22 +229,34 @@ function App() {
       note: d.note,
     };
 
-    // ★ GitHub Pages対応：CORS問題を回避する送信方式
-    // GETパラメータ + no-cors で確実にGASに届ける
-    var params = encodeURIComponent(JSON.stringify(payload));
-    var getUrl = GAS_URL + "?data=" + params;
-
-    // 方法1: fetch no-cors GET
-    fetch(getUrl, {mode: "no-cors"}).then(function() {
-      setStep(STEPS+1); setSubmitting(false);
-    }).catch(function() {
-      // 方法2: Image beacon（fetchが失敗した場合のフォールバック）
-      var img = new Image();
-      img.onload = img.onerror = function() {
+    // ファイルがある場合はBase64データを追加してPOST送信
+    if(d.files.length > 0) {
+      payload.files = d.files.map(f => ({name: f.name, type: f.type, data: f.data}));
+      fetch(GAS_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: {"Content-Type": "text/plain"},
+        body: JSON.stringify(payload),
+      }).then(function() {
         setStep(STEPS+1); setSubmitting(false);
-      };
-      img.src = getUrl;
-    });
+      }).catch(function() {
+        showToast("送信に失敗しました。もう一度お試しください");
+        setSubmitting(false);
+      });
+    } else {
+      // ファイルなし：従来のGET送信
+      var params = encodeURIComponent(JSON.stringify(payload));
+      var getUrl = GAS_URL + "?data=" + params;
+      fetch(getUrl, {mode: "no-cors"}).then(function() {
+        setStep(STEPS+1); setSubmitting(false);
+      }).catch(function() {
+        var img = new Image();
+        img.onload = img.onerror = function() {
+          setStep(STEPS+1); setSubmitting(false);
+        };
+        img.src = getUrl;
+      });
+    }
   };
 
   const Header = () => (
@@ -274,6 +322,7 @@ function App() {
             <div className="confirm-row"><span className="label">ごみ置き場</span><span className="value">{d.place}</span></div>
             <div className="confirm-row"><span className="label">その他品目</span><span className="value">{d.extras.length?d.extras.join("、"):"なし"}</span></div>
             {d.note && <div className="confirm-row"><span className="label">備考</span><span className="value">{d.note}</span></div>}
+            {d.files.length > 0 && <div className="confirm-row"><span className="label">添付ファイル</span><span className="value">{d.files.map(f=>f.name).join("、")}</span></div>}
             {d.name && <div className="confirm-row"><span className="label">お名前</span><span className="value">{d.name}</span></div>}
             {d.company && <div className="confirm-row"><span className="label">会社名</span><span className="value">{d.company}</span></div>}
           </div>
@@ -431,6 +480,33 @@ function App() {
           <div className="card">
             <div className="q-title">その他ご要望（任意）</div>
             <textarea className="inp" rows="3" placeholder="ご質問やご要望があればご記入ください" value={d.note} onChange={e=>set("note",e.target.value)} style={{resize:"vertical",minHeight:80}} />
+          </div>
+          <div className="card">
+            <div className="q-title">📎 お写真・資料等ございましたらお送りください</div>
+            <div className="q-hint">写真・PDF・Excel等（最大10MB×3ファイルまで）</div>
+            <div className={"file-upload-area"} onClick={()=>document.getElementById("fileInput").click()}
+              onDragOver={e=>{e.preventDefault();e.currentTarget.classList.add("dragover")}}
+              onDragLeave={e=>e.currentTarget.classList.remove("dragover")}
+              onDrop={e=>{e.preventDefault();e.currentTarget.classList.remove("dragover");handleFiles(e.dataTransfer.files)}}>
+              <div className="upload-icon">📤</div>
+              <div className="upload-text">タップして写真・ファイルを選択<br/>またはここにドラッグ＆ドロップ</div>
+              <div className="upload-btn">ファイルを選択</div>
+              <input id="fileInput" type="file" multiple accept="image/*,.pdf,.xlsx,.docx" style={{display:"none"}} onChange={e=>{handleFiles(e.target.files);e.target.value="";}} />
+            </div>
+            {d.files.length > 0 && (
+              <div className="file-list">
+                {d.files.map((f,i) => (
+                  <div key={i} className="file-item">
+                    {f.type.startsWith("image/") ? <img className="file-thumb" src={f.data} alt="" /> : <span className="file-icon">{fileIcon(f.type)}</span>}
+                    <div className="file-info">
+                      <div className="file-name">{f.name}</div>
+                      <div className="file-size">{formatSize(f.size)}</div>
+                    </div>
+                    <button className="file-remove" onClick={e=>{e.stopPropagation();removeFile(i)}}>✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           </>
         )}
