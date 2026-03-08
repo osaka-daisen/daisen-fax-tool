@@ -166,17 +166,51 @@ function App() {
   const MAX_FILES = 3;
   const ALLOWED_TYPES = ['image/jpeg','image/png','image/heic','image/heif','image/webp','application/pdf','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
 
+  // 画像をリサイズ圧縮（スマホ写真5MB→100KB程度に削減）
+  const compressImage = (file) => {
+    return new Promise((resolve) => {
+      if (!file.type.startsWith('image/') || file.type === 'image/heic' || file.type === 'image/heif') {
+        const reader = new FileReader();
+        reader.onload = (ev) => resolve({name: file.name, size: file.size, type: file.type, data: ev.target.result});
+        reader.readAsDataURL(file);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const img = new Image();
+        img.onload = () => {
+          const MAX_W = 1200, MAX_H = 1200;
+          let w = img.width, h = img.height;
+          if (w > MAX_W || h > MAX_H) {
+            const ratio = Math.min(MAX_W / w, MAX_H / h);
+            w = Math.round(w * ratio);
+            h = Math.round(h * ratio);
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          const compressed = canvas.toDataURL('image/jpeg', 0.7);
+          const newName = file.name.replace(/\.[^.]+$/, '.jpg');
+          resolve({name: newName, size: Math.round(compressed.length * 0.75), type: 'image/jpeg', data: compressed});
+        };
+        img.onerror = () => {
+          resolve({name: file.name, size: file.size, type: file.type, data: ev.target.result});
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleFiles = (fileList) => {
     const newFiles = Array.from(fileList);
     const currentCount = d.files.length;
     if(currentCount + newFiles.length > MAX_FILES){showToast("ファイルは最大"+MAX_FILES+"つまでです");return;}
     newFiles.forEach(file => {
       if(file.size > MAX_FILE_SIZE){showToast(file.name+" は10MBを超えています");return;}
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        setD(p => ({...p, files: [...p.files, {name: file.name, size: file.size, type: file.type, data: ev.target.result}]}));
-      };
-      reader.readAsDataURL(file);
+      compressImage(file).then(compressed => {
+        setD(p => ({...p, files: [...p.files, compressed]}));
+      });
     });
   };
   const removeFile = (idx) => setD(p => ({...p, files: p.files.filter((_,i) => i !== idx)}));
@@ -229,20 +263,39 @@ function App() {
       note: d.note,
     };
 
-    // ファイルがある場合はBase64データを追加してPOST送信
+    // ファイルがある場合：hidden form + iframeでPOST送信
+    // （fetch no-corsだとGASリダイレクトでPOSTボディが消える問題を回避）
     if(d.files.length > 0) {
       payload.files = d.files.map(f => ({name: f.name, type: f.type, data: f.data}));
-      fetch(GAS_URL, {
-        method: "POST",
-        mode: "no-cors",
-        headers: {"Content-Type": "text/plain"},
-        body: JSON.stringify(payload),
-      }).then(function() {
+      var jsonStr = JSON.stringify(payload);
+
+      // hidden iframe作成
+      var iframe = document.createElement('iframe');
+      iframe.name = 'gas_frame_' + Date.now();
+      iframe.style.display = 'none';
+      document.body.appendChild(iframe);
+
+      // hidden form作成
+      var form = document.createElement('form');
+      form.method = 'POST';
+      form.action = GAS_URL;
+      form.target = iframe.name;
+
+      var input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'data';
+      input.value = jsonStr;
+      form.appendChild(input);
+
+      document.body.appendChild(form);
+      form.submit();
+
+      // 送信後にクリーンアップ
+      setTimeout(function() {
+        try { document.body.removeChild(form); } catch(e) {}
+        try { document.body.removeChild(iframe); } catch(e) {}
         setStep(STEPS+1); setSubmitting(false);
-      }).catch(function() {
-        showToast("送信に失敗しました。もう一度お試しください");
-        setSubmitting(false);
-      });
+      }, 6000);
     } else {
       // ファイルなし：従来のGET送信
       var params = encodeURIComponent(JSON.stringify(payload));
