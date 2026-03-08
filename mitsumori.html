@@ -263,44 +263,55 @@ function App() {
       note: d.note,
     };
 
-    // ファイルがある場合：hidden form + iframeでPOST送信
-    // （fetch no-corsだとGASリダイレクトでPOSTボディが消える問題を回避）
+    // ファイルがある場合はPOST、なければGETで送信
     if(d.files.length > 0) {
       payload.files = d.files.map(f => ({name: f.name, type: f.type, data: f.data}));
-      var jsonStr = JSON.stringify(payload);
+    }
 
-      // hidden iframe作成
-      var iframe = document.createElement('iframe');
-      iframe.name = 'gas_frame_' + Date.now();
-      iframe.style.display = 'none';
-      document.body.appendChild(iframe);
+    var jsonStr = JSON.stringify(payload);
+    console.log("[見積フォーム] 送信開始: files=" + (payload.files ? payload.files.length : 0) + ", size=" + jsonStr.length + "bytes");
 
-      // hidden form作成
-      var form = document.createElement('form');
-      form.method = 'POST';
-      form.action = GAS_URL;
-      form.target = iframe.name;
-
-      var input = document.createElement('input');
-      input.type = 'hidden';
-      input.name = 'data';
-      input.value = jsonStr;
-      form.appendChild(input);
-
-      document.body.appendChild(form);
-      form.submit();
-
-      // 送信後にクリーンアップ
-      setTimeout(function() {
-        try { document.body.removeChild(form); } catch(e) {}
-        try { document.body.removeChild(iframe); } catch(e) {}
+    if(d.files.length > 0) {
+      // ファイルあり：fetch POST（GASはリダイレクト前にPOSTボディを処理する）
+      fetch(GAS_URL, {
+        method: "POST",
+        body: jsonStr,
+        mode: "no-cors",
+        headers: {"Content-Type": "text/plain;charset=utf-8"}
+      }).then(function() {
+        console.log("[見積フォーム] POST送信完了");
         setStep(STEPS+1); setSubmitting(false);
-      }, 6000);
+      }).catch(function(err) {
+        console.error("[見積フォーム] POST送信エラー:", err);
+        // フォールバック：hidden form + iframe
+        console.log("[見積フォーム] フォールバック: form POST");
+        var iframe = document.createElement('iframe');
+        iframe.name = 'gas_frame_' + Date.now();
+        iframe.style.display = 'none';
+        document.body.appendChild(iframe);
+        var form = document.createElement('form');
+        form.method = 'POST';
+        form.action = GAS_URL;
+        form.target = iframe.name;
+        var input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'data';
+        input.value = jsonStr;
+        form.appendChild(input);
+        document.body.appendChild(form);
+        form.submit();
+        setTimeout(function() {
+          try { document.body.removeChild(form); } catch(e) {}
+          try { document.body.removeChild(iframe); } catch(e) {}
+          setStep(STEPS+1); setSubmitting(false);
+        }, 8000);
+      });
     } else {
-      // ファイルなし：従来のGET送信
-      var params = encodeURIComponent(JSON.stringify(payload));
+      // ファイルなし：GET送信
+      var params = encodeURIComponent(jsonStr);
       var getUrl = GAS_URL + "?data=" + params;
       fetch(getUrl, {mode: "no-cors"}).then(function() {
+        console.log("[見積フォーム] GET送信完了");
         setStep(STEPS+1); setSubmitting(false);
       }).catch(function() {
         var img = new Image();
