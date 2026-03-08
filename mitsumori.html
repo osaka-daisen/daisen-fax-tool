@@ -166,29 +166,33 @@ function App() {
     });
   };
 
-  // GASプロキシiframeを読み込み（ファイル送信用）
+  // ページ読み込み時: 直接フォームPOST後の復帰を検知
   useEffect(() => {
+    var submitted = sessionStorage.getItem('mitsumori_submitted');
+    if (submitted) {
+      var elapsed = Date.now() - parseInt(submitted);
+      // 5分以内の送信なら成功画面を表示
+      if (elapsed < 300000) {
+        sessionStorage.removeItem('mitsumori_submitted');
+        setStep(STEPS + 1);
+        console.log('[見積フォーム] 送信成功を検知（復帰）');
+      } else {
+        sessionStorage.removeItem('mitsumori_submitted');
+      }
+    }
+    // プロキシiframe読み込み（GAS再デプロイ後に有効化）
     var iframe = document.createElement('iframe');
     iframe.src = GAS_URL + '?mode=proxy';
     iframe.style.cssText = 'display:none;width:0;height:0;border:0';
     document.body.appendChild(iframe);
     proxyRef.current = iframe;
-
     function handleMsg(ev) {
       if (!ev.data) return;
-      if (ev.data.type === 'proxyReady') {
-        setProxyReady(true);
-        console.log('[見積フォーム] プロキシ準備完了');
-      }
+      if (ev.data.type === 'proxyReady') { setProxyReady(true); }
       if (ev.data.type === 'formResult' && pendingRef.current) {
         pendingRef.current = false;
-        if (ev.data.ok) {
-          console.log('[見積フォーム] プロキシ送信成功');
-          setStep(STEPS + 1);
-        } else {
-          console.error('[見積フォーム] プロキシ送信エラー:', ev.data.err);
-          showToast('送信エラーが発生しました。再度お試しください。');
-        }
+        if (ev.data.ok) { setStep(STEPS + 1); }
+        else { showToast('送信エラー。再度お試しください。'); }
         setSubmitting(false);
       }
     }
@@ -309,38 +313,36 @@ function App() {
       console.log("[見積フォーム] ファイル付き送信: " + payload.files.length + "件, proxyReady=" + proxyReady);
 
       if(proxyReady && proxyRef.current && proxyRef.current.contentWindow) {
+        // 方法1: プロキシ経由（GAS再デプロイ後に有効）
         pendingRef.current = true;
         console.log("[見積フォーム] プロキシ経由で送信開始");
-        proxyRef.current.contentWindow.postMessage({
-          type: "submitForm",
-          payload: payload
-        }, "*");
-        // 90秒タイムアウト（ファイル処理に時間がかかる場合がある）
+        proxyRef.current.contentWindow.postMessage({type:"submitForm",payload:payload}, "*");
         setTimeout(function() {
           if(pendingRef.current) {
             pendingRef.current = false;
-            console.error("[見積フォーム] プロキシ送信タイムアウト");
             showToast("送信がタイムアウトしました。再度お試しください。");
             setSubmitting(false);
           }
         }, 90000);
       } else {
-        // プロキシ未準備: fetch POST フォールバック
-        console.log("[見積フォーム] プロキシ未準備、fetch POSTで送信");
+        // 方法2: 直接フォームPOST（CORS制限なし、最も確実）
+        // ページ遷移するため、sessionStorageに送信状態を保存
+        console.log("[見積フォーム] 直接フォームPOSTで送信");
         var jsonStr = JSON.stringify(payload);
-        fetch(GAS_URL, {
-          method: "POST",
-          body: jsonStr,
-          mode: "no-cors",
-          headers: {"Content-Type": "text/plain;charset=utf-8"}
-        }).then(function() {
-          console.log("[見積フォーム] fetch POST完了");
-          setStep(STEPS+1); setSubmitting(false);
-        }).catch(function(err) {
-          console.error("[見積フォーム] fetch POSTエラー:", err);
-          showToast("送信エラーが発生しました。再度お試しください。");
-          setSubmitting(false);
-        });
+        sessionStorage.setItem('mitsumori_submitted', String(Date.now()));
+        var form = document.createElement('form');
+        form.method = 'POST';
+        form.action = GAS_URL;
+        form.style.display = 'none';
+        var input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'data';
+        input.value = jsonStr;
+        form.appendChild(input);
+        document.body.appendChild(form);
+        form.submit();
+        // ページ遷移後、ブラウザの戻るボタンで復帰
+        // → useEffect内のsessionStorage検知で送信完了画面を表示
       }
     } else {
       // ============================================
@@ -368,7 +370,7 @@ function App() {
       <div className="logo">大泉衛生株式会社</div>
       <h1>定期ごみ収集のお見積り</h1>
       <div className="sub">最短30秒で完了！<br/>お気軽にお問い合わせください</div>
-      <div style={{fontSize:9,opacity:0.3,marginTop:2}}>v2.1</div>
+      <div style={{fontSize:9,opacity:0.3,marginTop:2}}>v2.2</div>
     </div>
   );
 
