@@ -153,6 +153,10 @@ function App() {
     name:"", company:"",
     files:[],
   });
+  const proxyRef = React.useRef(null);
+  const [proxyReady, setProxyReady] = React.useState(false);
+  const pendingRef = React.useRef(false);
+
   const set = (k,v) => setD(p=>({...p,[k]:v}));
   const toggleExtra = v => {
     if(v==="なし・未定"){set("extras",["なし・未定"]);return;}
@@ -161,6 +165,39 @@ function App() {
       return {...p, extras: ex.includes(v)?ex.filter(e=>e!==v):[...ex,v]};
     });
   };
+
+  // GASプロキシiframeを読み込み（ファイル送信用）
+  useEffect(() => {
+    var iframe = document.createElement('iframe');
+    iframe.src = GAS_URL + '?mode=proxy';
+    iframe.style.cssText = 'display:none;width:0;height:0;border:0';
+    document.body.appendChild(iframe);
+    proxyRef.current = iframe;
+
+    function handleMsg(ev) {
+      if (!ev.data) return;
+      if (ev.data.type === 'proxyReady') {
+        setProxyReady(true);
+        console.log('[見積フォーム] プロキシ準備完了');
+      }
+      if (ev.data.type === 'formResult' && pendingRef.current) {
+        pendingRef.current = false;
+        if (ev.data.ok) {
+          console.log('[見積フォーム] プロキシ送信成功');
+          setStep(STEPS + 1);
+        } else {
+          console.error('[見積フォーム] プロキシ送信エラー:', ev.data.err);
+          showToast('送信エラーが発生しました。再度お試しください。');
+        }
+        setSubmitting(false);
+      }
+    }
+    window.addEventListener('message', handleMsg);
+    return () => {
+      window.removeEventListener('message', handleMsg);
+      try { document.body.removeChild(iframe); } catch(e) {}
+    };
+  }, []);
 
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
   const MAX_FILES = 3;
@@ -263,53 +300,56 @@ function App() {
       note: d.note,
     };
 
-    // ファイルがある場合はPOST、なければGETで送信
     if(d.files.length > 0) {
+      // ============================================
+      // ファイル付き送信: postMessageプロキシ経由
+      // HTTP POSTを回避し、google.script.runで直接GASを呼び出す
+      // ============================================
       payload.files = d.files.map(f => ({name: f.name, type: f.type, data: f.data}));
-    }
+      console.log("[見積フォーム] ファイル付き送信: " + payload.files.length + "件, proxyReady=" + proxyReady);
 
-    var jsonStr = JSON.stringify(payload);
-    console.log("[見積フォーム] 送信開始: files=" + (payload.files ? payload.files.length : 0) + ", size=" + jsonStr.length + "bytes");
-
-    if(d.files.length > 0) {
-      // ファイルあり：fetch POST（GASはリダイレクト前にPOSTボディを処理する）
-      fetch(GAS_URL, {
-        method: "POST",
-        body: jsonStr,
-        mode: "no-cors",
-        headers: {"Content-Type": "text/plain;charset=utf-8"}
-      }).then(function() {
-        console.log("[見積フォーム] POST送信完了");
-        setStep(STEPS+1); setSubmitting(false);
-      }).catch(function(err) {
-        console.error("[見積フォーム] POST送信エラー:", err);
-        // フォールバック：hidden form + iframe
-        console.log("[見積フォーム] フォールバック: form POST");
-        var iframe = document.createElement('iframe');
-        iframe.name = 'gas_frame_' + Date.now();
-        iframe.style.display = 'none';
-        document.body.appendChild(iframe);
-        var form = document.createElement('form');
-        form.method = 'POST';
-        form.action = GAS_URL;
-        form.target = iframe.name;
-        var input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = 'data';
-        input.value = jsonStr;
-        form.appendChild(input);
-        document.body.appendChild(form);
-        form.submit();
+      if(proxyReady && proxyRef.current && proxyRef.current.contentWindow) {
+        pendingRef.current = true;
+        console.log("[見積フォーム] プロキシ経由で送信開始");
+        proxyRef.current.contentWindow.postMessage({
+          type: "submitForm",
+          payload: payload
+        }, "*");
+        // 90秒タイムアウト（ファイル処理に時間がかかる場合がある）
         setTimeout(function() {
-          try { document.body.removeChild(form); } catch(e) {}
-          try { document.body.removeChild(iframe); } catch(e) {}
+          if(pendingRef.current) {
+            pendingRef.current = false;
+            console.error("[見積フォーム] プロキシ送信タイムアウト");
+            showToast("送信がタイムアウトしました。再度お試しください。");
+            setSubmitting(false);
+          }
+        }, 90000);
+      } else {
+        // プロキシ未準備: fetch POST フォールバック
+        console.log("[見積フォーム] プロキシ未準備、fetch POSTで送信");
+        var jsonStr = JSON.stringify(payload);
+        fetch(GAS_URL, {
+          method: "POST",
+          body: jsonStr,
+          mode: "no-cors",
+          headers: {"Content-Type": "text/plain;charset=utf-8"}
+        }).then(function() {
+          console.log("[見積フォーム] fetch POST完了");
           setStep(STEPS+1); setSubmitting(false);
-        }, 8000);
-      });
+        }).catch(function(err) {
+          console.error("[見積フォーム] fetch POSTエラー:", err);
+          showToast("送信エラーが発生しました。再度お試しください。");
+          setSubmitting(false);
+        });
+      }
     } else {
-      // ファイルなし：GET送信
+      // ============================================
+      // テキストのみ: GET送信（実績あり）
+      // ============================================
+      var jsonStr = JSON.stringify(payload);
       var params = encodeURIComponent(jsonStr);
       var getUrl = GAS_URL + "?data=" + params;
+      console.log("[見積フォーム] GET送信: size=" + jsonStr.length);
       fetch(getUrl, {mode: "no-cors"}).then(function() {
         console.log("[見積フォーム] GET送信完了");
         setStep(STEPS+1); setSubmitting(false);
@@ -328,6 +368,7 @@ function App() {
       <div className="logo">大泉衛生株式会社</div>
       <h1>定期ごみ収集のお見積り</h1>
       <div className="sub">最短30秒で完了！<br/>お気軽にお問い合わせください</div>
+      <div style={{fontSize:9,opacity:0.3,marginTop:2}}>v2.1</div>
     </div>
   );
 
