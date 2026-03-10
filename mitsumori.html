@@ -61,20 +61,6 @@ input,select,textarea,button{font-family:inherit;font-size:16px}
 .complete p{font-size:14px;color:#888;line-height:1.7}
 .toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:var(--r);color:#fff;padding:10px 20px;border-radius:10px;font-size:13px;font-weight:600;z-index:200;animation:toastIn .3s ease}
 @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(-10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
-.file-upload-area{border:2px dashed #ccc;border-radius:12px;padding:20px;text-align:center;cursor:pointer;transition:all .2s;background:#fafaf6}
-.file-upload-area:hover,.file-upload-area.dragover{border-color:var(--accent);background:#e8f5e9}
-.file-upload-area .upload-icon{font-size:32px;margin-bottom:8px}
-.file-upload-area .upload-text{font-size:13px;color:#888;line-height:1.6}
-.file-upload-area .upload-btn{display:inline-block;margin-top:10px;background:var(--g2);color:#fff;padding:10px 20px;border-radius:10px;font-size:13px;font-weight:600}
-.file-list{margin-top:12px}
-.file-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#f5f5f0;border-radius:10px;margin-bottom:6px}
-.file-item .file-icon{font-size:20px;flex-shrink:0}
-.file-item .file-info{flex:1;min-width:0}
-.file-item .file-name{font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.file-item .file-size{font-size:11px;color:#999}
-.file-item .file-remove{background:none;border:none;font-size:18px;color:#999;cursor:pointer;padding:4px 8px;border-radius:6px}
-.file-item .file-remove:hover{background:#eee;color:var(--r)}
-.file-thumb{width:40px;height:40px;border-radius:6px;object-fit:cover;flex-shrink:0}
 </style>
 </head>
 <body>
@@ -151,11 +137,7 @@ function App() {
     extras:[],
     note:"",
     name:"", company:"",
-    files:[],
   });
-  const proxyRef = React.useRef(null);
-  const [proxyReady, setProxyReady] = React.useState(false);
-  const pendingRef = React.useRef(false);
 
   const set = (k,v) => setD(p=>({...p,[k]:v}));
   const toggleExtra = v => {
@@ -165,98 +147,6 @@ function App() {
       return {...p, extras: ex.includes(v)?ex.filter(e=>e!==v):[...ex,v]};
     });
   };
-
-  // ページ読み込み時: 直接フォームPOST後の復帰を検知
-  useEffect(() => {
-    var submitted = sessionStorage.getItem('mitsumori_submitted');
-    if (submitted) {
-      var elapsed = Date.now() - parseInt(submitted);
-      // 5分以内の送信なら成功画面を表示
-      if (elapsed < 300000) {
-        sessionStorage.removeItem('mitsumori_submitted');
-        setStep(STEPS + 1);
-        console.log('[見積フォーム] 送信成功を検知（復帰）');
-      } else {
-        sessionStorage.removeItem('mitsumori_submitted');
-      }
-    }
-    // プロキシiframe読み込み（GAS再デプロイ後に有効化）
-    var iframe = document.createElement('iframe');
-    iframe.src = GAS_URL + '?mode=proxy';
-    iframe.style.cssText = 'display:none;width:0;height:0;border:0';
-    document.body.appendChild(iframe);
-    proxyRef.current = iframe;
-    function handleMsg(ev) {
-      if (!ev.data) return;
-      if (ev.data.type === 'proxyReady') { setProxyReady(true); }
-      if (ev.data.type === 'formResult' && pendingRef.current) {
-        pendingRef.current = false;
-        if (ev.data.ok) { setStep(STEPS + 1); }
-        else { showToast('送信エラー。再度お試しください。'); }
-        setSubmitting(false);
-      }
-    }
-    window.addEventListener('message', handleMsg);
-    return () => {
-      window.removeEventListener('message', handleMsg);
-      try { document.body.removeChild(iframe); } catch(e) {}
-    };
-  }, []);
-
-  const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-  const MAX_FILES = 3;
-  const ALLOWED_TYPES = ['image/jpeg','image/png','image/heic','image/heif','image/webp','application/pdf','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-
-  // 画像をリサイズ圧縮（スマホ写真5MB→100KB程度に削減）
-  const compressImage = (file) => {
-    return new Promise((resolve) => {
-      if (!file.type.startsWith('image/') || file.type === 'image/heic' || file.type === 'image/heif') {
-        const reader = new FileReader();
-        reader.onload = (ev) => resolve({name: file.name, size: file.size, type: file.type, data: ev.target.result});
-        reader.readAsDataURL(file);
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const img = new Image();
-        img.onload = () => {
-          const MAX_W = 1200, MAX_H = 1200;
-          let w = img.width, h = img.height;
-          if (w > MAX_W || h > MAX_H) {
-            const ratio = Math.min(MAX_W / w, MAX_H / h);
-            w = Math.round(w * ratio);
-            h = Math.round(h * ratio);
-          }
-          const canvas = document.createElement('canvas');
-          canvas.width = w; canvas.height = h;
-          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-          const compressed = canvas.toDataURL('image/jpeg', 0.7);
-          const newName = file.name.replace(/\.[^.]+$/, '.jpg');
-          resolve({name: newName, size: Math.round(compressed.length * 0.75), type: 'image/jpeg', data: compressed});
-        };
-        img.onerror = () => {
-          resolve({name: file.name, size: file.size, type: file.type, data: ev.target.result});
-        };
-        img.src = ev.target.result;
-      };
-      reader.readAsDataURL(file);
-    });
-  };
-
-  const handleFiles = (fileList) => {
-    const newFiles = Array.from(fileList);
-    const currentCount = d.files.length;
-    if(currentCount + newFiles.length > MAX_FILES){showToast("ファイルは最大"+MAX_FILES+"つまでです");return;}
-    newFiles.forEach(file => {
-      if(file.size > MAX_FILE_SIZE){showToast(file.name+" は10MBを超えています");return;}
-      compressImage(file).then(compressed => {
-        setD(p => ({...p, files: [...p.files, compressed]}));
-      });
-    });
-  };
-  const removeFile = (idx) => setD(p => ({...p, files: p.files.filter((_,i) => i !== idx)}));
-  const formatSize = (bytes) => bytes < 1024*1024 ? Math.round(bytes/1024)+"KB" : (bytes/1024/1024).toFixed(1)+"MB";
-  const fileIcon = (type) => type.startsWith("image/")?"📷":type.includes("pdf")?"📄":type.includes("sheet")?"📊":"📎";
 
   const STEPS = 6;
   const showToast = msg => { setToast(msg); setTimeout(()=>setToast(""),2500); };
@@ -304,65 +194,20 @@ function App() {
       note: d.note,
     };
 
-    if(d.files.length > 0) {
-      // ============================================
-      // ファイル付き送信: postMessageプロキシ経由
-      // HTTP POSTを回避し、google.script.runで直接GASを呼び出す
-      // ============================================
-      payload.files = d.files.map(f => ({name: f.name, type: f.type, data: f.data}));
-      console.log("[見積フォーム] ファイル付き送信: " + payload.files.length + "件, proxyReady=" + proxyReady);
-
-      if(proxyReady && proxyRef.current && proxyRef.current.contentWindow) {
-        // 方法1: プロキシ経由（GAS再デプロイ後に有効）
-        pendingRef.current = true;
-        console.log("[見積フォーム] プロキシ経由で送信開始");
-        proxyRef.current.contentWindow.postMessage({type:"submitForm",payload:payload}, "*");
-        setTimeout(function() {
-          if(pendingRef.current) {
-            pendingRef.current = false;
-            showToast("送信がタイムアウトしました。再度お試しください。");
-            setSubmitting(false);
-          }
-        }, 90000);
-      } else {
-        // 方法2: 直接フォームPOST（CORS制限なし、最も確実）
-        // ページ遷移するため、sessionStorageに送信状態を保存
-        console.log("[見積フォーム] 直接フォームPOSTで送信");
-        var jsonStr = JSON.stringify(payload);
-        sessionStorage.setItem('mitsumori_submitted', String(Date.now()));
-        var form = document.createElement('form');
-        form.method = 'POST';
-        form.action = GAS_URL;
-        form.style.display = 'none';
-        var input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = 'data';
-        input.value = jsonStr;
-        form.appendChild(input);
-        document.body.appendChild(form);
-        form.submit();
-        // ページ遷移後、ブラウザの戻るボタンで復帰
-        // → useEffect内のsessionStorage検知で送信完了画面を表示
-      }
-    } else {
-      // ============================================
-      // テキストのみ: GET送信（実績あり）
-      // ============================================
-      var jsonStr = JSON.stringify(payload);
-      var params = encodeURIComponent(jsonStr);
-      var getUrl = GAS_URL + "?data=" + params;
-      console.log("[見積フォーム] GET送信: size=" + jsonStr.length);
-      fetch(getUrl, {mode: "no-cors"}).then(function() {
-        console.log("[見積フォーム] GET送信完了");
+    var jsonStr = JSON.stringify(payload);
+    var params = encodeURIComponent(jsonStr);
+    var getUrl = GAS_URL + "?data=" + params;
+    console.log("[見積フォーム] GET送信: size=" + jsonStr.length);
+    fetch(getUrl, {mode: "no-cors"}).then(function() {
+      console.log("[見積フォーム] GET送信完了");
+      setStep(STEPS+1); setSubmitting(false);
+    }).catch(function() {
+      var img = new Image();
+      img.onload = img.onerror = function() {
         setStep(STEPS+1); setSubmitting(false);
-      }).catch(function() {
-        var img = new Image();
-        img.onload = img.onerror = function() {
-          setStep(STEPS+1); setSubmitting(false);
-        };
-        img.src = getUrl;
-      });
-    }
+      };
+      img.src = getUrl;
+    });
   };
 
   const Header = () => (
@@ -370,7 +215,7 @@ function App() {
       <div className="logo">大泉衛生株式会社</div>
       <h1>定期ごみ収集のお見積り</h1>
       <div className="sub">最短30秒で完了！<br/>お気軽にお問い合わせください</div>
-      <div style={{fontSize:9,opacity:0.3,marginTop:2}}>v2.2</div>
+      <div style={{fontSize:9,opacity:0.3,marginTop:2}}>v3.0</div>
     </div>
   );
 
@@ -429,7 +274,6 @@ function App() {
             <div className="confirm-row"><span className="label">ごみ置き場</span><span className="value">{d.place}</span></div>
             <div className="confirm-row"><span className="label">その他品目</span><span className="value">{d.extras.length?d.extras.join("、"):"なし"}</span></div>
             {d.note && <div className="confirm-row"><span className="label">備考</span><span className="value">{d.note}</span></div>}
-            {d.files.length > 0 && <div className="confirm-row"><span className="label">添付ファイル</span><span className="value">{d.files.map(f=>f.name).join("、")}</span></div>}
             {d.name && <div className="confirm-row"><span className="label">お名前</span><span className="value">{d.name}</span></div>}
             {d.company && <div className="confirm-row"><span className="label">会社名</span><span className="value">{d.company}</span></div>}
           </div>
@@ -587,33 +431,6 @@ function App() {
           <div className="card">
             <div className="q-title">その他ご要望（任意）</div>
             <textarea className="inp" rows="3" placeholder="ご質問やご要望があればご記入ください" value={d.note} onChange={e=>set("note",e.target.value)} style={{resize:"vertical",minHeight:80}} />
-          </div>
-          <div className="card">
-            <div className="q-title">📎 お写真・資料等ございましたらお送りください</div>
-            <div className="q-hint">写真・PDF・Excel等（最大10MB×3ファイルまで）</div>
-            <div className={"file-upload-area"} onClick={()=>document.getElementById("fileInput").click()}
-              onDragOver={e=>{e.preventDefault();e.currentTarget.classList.add("dragover")}}
-              onDragLeave={e=>e.currentTarget.classList.remove("dragover")}
-              onDrop={e=>{e.preventDefault();e.currentTarget.classList.remove("dragover");handleFiles(e.dataTransfer.files)}}>
-              <div className="upload-icon">📤</div>
-              <div className="upload-text">タップして写真・ファイルを選択<br/>またはここにドラッグ＆ドロップ</div>
-              <div className="upload-btn">ファイルを選択</div>
-              <input id="fileInput" type="file" multiple accept="image/*,.pdf,.xlsx,.docx" style={{display:"none"}} onChange={e=>{handleFiles(e.target.files);e.target.value="";}} />
-            </div>
-            {d.files.length > 0 && (
-              <div className="file-list">
-                {d.files.map((f,i) => (
-                  <div key={i} className="file-item">
-                    {f.type.startsWith("image/") ? <img className="file-thumb" src={f.data} alt="" /> : <span className="file-icon">{fileIcon(f.type)}</span>}
-                    <div className="file-info">
-                      <div className="file-name">{f.name}</div>
-                      <div className="file-size">{formatSize(f.size)}</div>
-                    </div>
-                    <button className="file-remove" onClick={e=>{e.stopPropagation();removeFile(i)}}>✕</button>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
           </>
         )}
