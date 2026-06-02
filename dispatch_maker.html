@@ -219,7 +219,7 @@
   $('f-key').value = localStorage.getItem('daisen_gmap_key') || '';
 
   const bind = (inputId, outId, ph) => $(inputId).addEventListener('input', e => setText(outId, e.target.value, ph));
-  bind('f-name','o-name','—'); bind('f-datetime','o-datetime','—'); bind('f-place','o-place','—');
+  bind('f-name','o-name','—'); bind('f-addr','o-addr','—'); bind('f-datetime','o-datetime','—'); bind('f-place','o-place','—');
   bind('f-item','o-item','　'); bind('f-staff','o-staff','　');
 
   function renderCars(){
