@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>収集手配書 作成</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<style>
+  :root{
+    --teal:#008070; --teal-d:#00604f; --teal-l:#eef6f4;
+    --line:#d8dcdb; --ink:#1f2624; --muted:#6b7773; --red:#c0392b;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:"Yu Gothic","YuGothic","Meiryo",sans-serif;color:var(--ink);background:#dfe4e3;}
+  .app{display:flex;min-height:100vh;}
+
+  .form-pane{
+    width:370px;flex:none;background:#f4f7f6;height:100vh;position:sticky;top:0;overflow:auto;
+    padding:20px;border-right:1px solid #cfd8d5;
+  }
+  .form-pane h1{font-size:18px;color:var(--teal-d);margin-bottom:6px;}
+  .hint{font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6;}
+  .form-pane label{display:block;font-size:12px;font-weight:800;color:var(--teal-d);margin:13px 0 4px;}
+  .form-pane input,.form-pane textarea{
+    width:100%;padding:8px 10px;border:1px solid #cfd8d5;border-radius:6px;font-size:14px;font-family:inherit;background:#fff;
+  }
+  .form-pane input:focus,.form-pane textarea:focus{outline:2px solid var(--teal);border-color:var(--teal);}
+  .car-inputs{display:flex;gap:6px;}
+  .car-inputs input{text-align:center;}
+  .note-inputs input{margin-bottom:6px;}
+  /* 収集頻度 */
+  .freq-types,.freq-sub{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:4px;}
+  .freq-sub{margin-top:8px;padding:8px 10px;background:#fff;border:1px solid #cfd8d5;border-radius:6px;}
+  .form-pane .rb,.form-pane .cb{display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:700;color:var(--ink);margin:0;cursor:pointer;}
+  .form-pane .rb input,.form-pane .cb input{width:auto;}
+  .btns{margin-top:20px;display:flex;flex-direction:column;gap:8px;}
+  .btns button{padding:12px;border:none;border-radius:7px;font-size:14px;font-weight:800;cursor:pointer;}
+  .btns .primary{background:var(--teal);color:#fff;}
+  .btns .primary:hover{background:var(--teal-d);}
+  .btns button.sub{background:#fff;border:1px solid var(--teal);color:var(--teal);}
+  .msg{font-size:12px;color:var(--teal-d);margin-top:10px;min-height:1.2em;font-weight:700;}
+  details.adv{margin-top:16px;border-top:1px dashed #cfd8d5;padding-top:10px;}
+  details.adv summary{font-size:12px;font-weight:800;color:var(--muted);cursor:pointer;}
+  details.adv .note{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.6;}
+
+  .preview-pane{flex:1;padding:24px;overflow:auto;display:flex;justify-content:center;align-items:flex-start;}
+
+  .sheet{width:210mm;flex:none;background:#fff;box-shadow:0 6px 24px rgba(0,0,0,.18);padding-bottom:10mm;}
+  .head{background:var(--teal);color:#fff;padding:8mm 10mm 6mm;display:flex;justify-content:space-between;align-items:center;}
+  .head .ttl{font-size:30px;font-weight:800;letter-spacing:3px;}
+  .head .sub{font-size:13px;opacity:.92;margin-top:4px;letter-spacing:1px;}
+  .cars{text-align:right;}
+  .cars-label{font-size:12px;opacity:.92;margin-bottom:5px;letter-spacing:1px;}
+  .car-boxes{display:flex;gap:6px;justify-content:flex-end;}
+  .car{background:#fff;color:var(--teal-d);min-width:54px;height:40px;border-radius:6px;
+       display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;letter-spacing:1px;padding:0 8px;}
+  .car.empty{background:rgba(255,255,255,.28);border:1px dashed rgba(255,255,255,.7);}
+  .wrap{padding:7mm 10mm 0;}
+  table.info{width:100%;border-collapse:collapse;margin-bottom:6mm;font-size:15px;}
+  table.info th{background:var(--teal-l);color:var(--teal-d);width:32mm;text-align:left;padding:9px 12px;
+                border:1px solid var(--line);font-weight:800;white-space:nowrap;vertical-align:top;}
+  table.info td{padding:9px 12px;border:1px solid var(--line);font-weight:600;}
+  td .big{font-size:20px;font-weight:800;}
+  .freq-emp{color:var(--red);font-size:21px;font-weight:800;}
+  .note-row th{background:#fdeae4;color:var(--red);}
+  .note-row td{background:#fff8f5;color:#b53a25;font-weight:700;}
+  .note-row td div{margin:2px 0;}
+  .block{margin-bottom:5mm;}
+  .label-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+  .label{display:flex;align-items:center;gap:9px;font-weight:800;color:var(--teal-d);font-size:15px;}
+  .label::before{content:"";width:6px;height:19px;background:var(--teal);border-radius:2px;}
+  .navbtn{background:var(--teal);color:#fff;text-decoration:none;font-size:13px;font-weight:800;
+          padding:7px 14px;border-radius:20px;display:inline-flex;align-items:center;}
+  #mapBox .map{width:100%;height:85mm;border:1px solid var(--line);border-radius:9px;display:block;object-fit:cover;}
+  .qrmap{display:flex;align-items:center;gap:16px;background:#f5faf9;border:1px solid #aac4bd !important;
+         border-radius:9px;padding:8px 16px;height:85mm;}
+  .qrimg{width:44mm;height:44mm;flex:none;}
+  .qrtext .qrt1{font-weight:800;color:var(--teal-d);font-size:15px;}
+  .qrtext .qrt2{font-size:12px;color:#7a988f;margin:4px 0 10px;}
+  .qrtext .qra{font-weight:800;font-size:17px;}
+  .foot{margin-top:6mm;padding-top:7px;border-top:1px solid var(--line);font-size:11px;color:var(--muted);
+        display:flex;justify-content:space-between;}
+
+  @media (max-width: 900px){
+    .app{flex-direction:column;}
+    .form-pane{width:100%;height:auto;position:static;border-right:none;border-bottom:1px solid #cfd8d5;}
+    .preview-pane{overflow:auto;justify-content:flex-start;padding:16px;}
+  }
+</style>
+</head>
+<body>
+  <div class="app">
+    <aside class="form-pane">
+      <h1>収集手配書 作成</h1>
+      <p class="hint">入力すると右に手配書ができます。<br>「画像で保存」→ LINE/チャットで事務員さんへ送付。</p>
+
+      <label>車番（最大3台）</label>
+      <div class="car-inputs">
+        <input id="car1" placeholder="例 5323">
+        <input id="car2" placeholder="">
+        <input id="car3" placeholder="">
+      </div>
+
+      <label>物件名</label>
+      <input id="f-name" placeholder="例 麺楽厨房">
+
+      <label>住所</label>
+      <input id="f-addr" placeholder="例 堺市堺区北丸保園2-2-24">
+
+      <label>地図のズーム（数字が大きいほど拡大／最大21）</label>
+      <input type="number" id="f-zoom" value="16" min="12" max="21">
+
+      <label>収集頻度</label>
+      <div class="freq-types">
+        <label class="rb"><input type="radio" name="freq" value="週6">週6</label>
+        <label class="rb"><input type="radio" name="freq" value="週3">週3</label>
+        <label class="rb"><input type="radio" name="freq" value="毎日どり">毎日どり</label>
+        <label class="rb"><input type="radio" name="freq" value="曜日指定">曜日指定</label>
+      </div>
+      <div id="freq-week3" class="freq-sub" style="display:none">
+        <label class="rb"><input type="radio" name="w3" value="月・水・金" checked>月水金</label>
+        <label class="rb"><input type="radio" name="w3" value="火・木・土">火木土</label>
+      </div>
+      <div id="freq-days" class="freq-sub" style="display:none">
+        <label class="cb"><input type="checkbox" class="day" value="月">月</label>
+        <label class="cb"><input type="checkbox" class="day" value="火">火</label>
+        <label class="cb"><input type="checkbox" class="day" value="水">水</label>
+        <label class="cb"><input type="checkbox" class="day" value="木">木</label>
+        <label class="cb"><input type="checkbox" class="day" value="金">金</label>
+        <label class="cb"><input type="checkbox" class="day" value="土">土</label>
+        <label class="cb"><input type="checkbox" class="day" value="日">日</label>
+      </div>
+
+      <label>収集日時</label>
+      <input id="f-datetime" placeholder="例 6/5(金)晩〜6/6(土)早朝">
+
+      <label>収集場所</label>
+      <input id="f-place" placeholder="例 建物東側 ガスメーター付近">
+
+      <label>品目</label>
+      <input id="f-item" placeholder="例 事業系一般ごみ">
+
+      <label>担当 / 連絡先</label>
+      <input id="f-staff" placeholder="">
+
+      <label>注意事項（最大4つ）</label>
+      <div class="note-inputs">
+        <input id="f-note1" placeholder="例 路地が狭いため台車推奨">
+        <input id="f-note2" placeholder="">
+        <input id="f-note3" placeholder="">
+        <input id="f-note4" placeholder="">
+      </div>
+
+      <div class="btns">
+        <button id="saveBtn" class="primary">画像で保存（PNG）</button>
+        <button id="copyBtn" class="sub">LINE用テキストをコピー</button>
+      </div>
+      <p id="msg" class="msg"></p>
+
+      <details class="adv">
+        <summary>地図の設定（Google Maps APIキー）</summary>
+        <label>APIキー</label>
+        <input id="f-key" placeholder="未入力ならQRで代用">
+        <p class="note">キーを入れると、出力画像に「収集拠点へ赤ピン＋指定ズーム」の地図が入ります。キーはこのPCに保存され、次回から自動で使われます。</p>
+      </details>
+    </aside>
+
+    <main class="preview-pane">
+      <div id="sheet" class="sheet">
+        <div class="head">
+          <div>
+            <div class="ttl">新規 収集手配書</div>
+            <div class="sub">大泉衛生　／　ドライバー手配用</div>
+          </div>
+          <div class="cars">
+            <div class="cars-label">車番（最大3台）</div>
+            <div class="car-boxes" id="carBoxes">
+              <span class="car empty"></span><span class="car empty"></span><span class="car empty"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="wrap">
+          <table class="info">
+            <tr><th>物件名</th><td><span class="big" id="o-name">—</span></td></tr>
+            <tr><th>住所</th><td id="o-addr">—</td></tr>
+            <tr><th>収集頻度</th><td id="o-freq">—</td></tr>
+            <tr><th>収集日時</th><td><span class="big" id="o-datetime">—</span></td></tr>
+            <tr><th>収集場所</th><td id="o-place">—</td></tr>
+            <tr><th>品目</th><td id="o-item">　</td></tr>
+            <tr><th>担当 / 連絡先</th><td id="o-staff">　</td></tr>
+            <tr class="note-row"><th>注意事項</th><td id="o-note">　</td></tr>
+          </table>
+
+          <div class="block">
+            <div class="label-row">
+              <div class="label">地図（収集拠点）</div>
+              <a class="navbtn" id="navlink" href="#" target="_blank">Googleマップで開く（ナビ）</a>
+            </div>
+            <div id="mapBox"></div>
+          </div>
+
+          <div class="foot">
+            <span>大泉衛生　d-daisen@aurora.ocn.ne.jp</span>
+            <span id="o-date"></span>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const setText = (id, v, ph) => { $(id).textContent = (v && v.trim()) ? v : ph; };
+  const getKey = () => ($('f-key').value || '').trim();
+
+  $('o-date').textContent = '作成日：' + new Date().toLocaleDateString('ja-JP');
+  $('f-key').value = localStorage.getItem('daisen_gmap_key') || '';
+
+  const bind = (inputId, outId, ph) => $(inputId).addEventListener('input', e => setText(outId, e.target.value, ph));
+  bind('f-name','o-name','—'); bind('f-datetime','o-datetime','—'); bind('f-place','o-place','—');
+  bind('f-item','o-item','　'); bind('f-staff','o-staff','　');
+
+  function renderCars(){
+    const vals=[$('car1').value,$('car2').value,$('car3').value];
+    const box=$('carBoxes'); box.innerHTML='';
+    vals.forEach(v=>{ const s=document.createElement('span');
+      if(v&&v.trim()){s.className='car';s.textContent=v.trim();}else{s.className='car empty';}
+      box.appendChild(s);});
+  }
+  ['car1','car2','car3'].forEach(id=>$(id).addEventListener('input',renderCars));
+
+  // 注意事項（4枠）
+  function renderNotes(){
+    const cell=$('o-note');
+    const notes=['f-note1','f-note2','f-note3','f-note4'].map(id=>$(id).value.trim()).filter(Boolean);
+    cell.innerHTML='';
+    if(!notes.length){ cell.textContent='　'; return; }
+    notes.forEach(n=>{ const d=document.createElement('div'); d.textContent='・'+n; cell.appendChild(d); });
+  }
+  ['f-note1','f-note2','f-note3','f-note4'].forEach(id=>$(id).addEventListener('input',renderNotes));
+
+  // 収集頻度
+  function freqText(){
+    const f=document.querySelector('input[name=freq]:checked');
+    if(!f) return '';
+    if(f.value==='週6') return '週6回';
+    if(f.value==='週3'){ const w=document.querySelector('input[name=w3]:checked'); return '週3回（'+(w?w.value:'月・水・金')+'）'; }
+    if(f.value==='毎日どり') return '毎日どり';
+    if(f.value==='曜日指定'){ const ds=[...document.querySelectorAll('.day:checked')].map(d=>d.value); return ds.length?ds.join('・'):'曜日指定'; }
+    return '';
+  }
+  function renderFreq(){
+    const cell=$('o-freq'); const t=freqText();
+    cell.innerHTML='';
+    if(!t){ cell.textContent='—'; return; }
+    const f=document.querySelector('input[name=freq]:checked');
+    if(f && f.value==='毎日どり'){ const s=document.createElement('span'); s.className='freq-emp'; s.textContent=t; cell.appendChild(s); }
+    else { cell.textContent=t; }
+  }
+  function updateFreqUI(){
+    const f=document.querySelector('input[name=freq]:checked');
+    $('freq-week3').style.display=(f&&f.value==='週3')?'flex':'none';
+    $('freq-days').style.display=(f&&f.value==='曜日指定')?'flex':'none';
+    renderFreq();
+  }
+  document.querySelectorAll('input[name=freq],input[name=w3],.day').forEach(el=>el.addEventListener('change',updateFreqUI));
+
+  // 地図
+  function mapQuery(){ return encodeURIComponent($('f-addr').value.trim() || '大阪'); }
+  function gmapLink(){ return 'https://www.google.com/maps/search/?api=1&query=' + mapQuery(); }
+  function staticMapURL(){
+    const key=getKey(); if(!key) return null;
+    const z=$('f-zoom').value||16; const q=mapQuery();
+    return 'https://maps.googleapis.com/maps/api/staticmap?center='+q+'&zoom='+z
+      +'&size=640x300&scale=2&markers=color:red%7C'+q+'&language=ja&region=JP&key='+key;
+  }
+  let mapTimer=null;
+  function updateMap(){
+    $('navlink').href = gmapLink();
+    const box=$('mapBox'); const url=staticMapURL();
+    if(url){
+      let img=box.querySelector('img.map');
+      if(!img){ box.innerHTML=''; img=new Image(); img.className='map'; img.crossOrigin='anonymous'; box.appendChild(img); }
+      // 入力が止まってから1回だけ読み込む（Maps Static APIの呼び出し回数を節約）
+      clearTimeout(mapTimer);
+      mapTimer=setTimeout(()=>{ if(img.src!==url) img.src=url; },700);
+    }else{
+      let f=box.querySelector('iframe.map');
+      if(!f){ box.innerHTML=''; f=document.createElement('iframe'); f.className='map'; f.loading='lazy';
+        f.referrerPolicy='no-referrer-when-downgrade'; box.appendChild(f); }
+      clearTimeout(mapTimer);
+      mapTimer=setTimeout(()=>{ f.src='https://www.google.com/maps?q='+mapQuery()+'&output=embed'; },600);
+    }
+  }
+  $('f-addr').addEventListener('input',updateMap);
+  $('f-zoom').addEventListener('input',updateMap);
+  $('f-key').addEventListener('input',()=>{ localStorage.setItem('daisen_gmap_key',getKey()); updateMap(); });
+
+  function qrHTML(){
+    const url=gmapLink(); const qr=qrcode(0,'M'); qr.addData(url); qr.make();
+    const addr=$('f-addr').value.trim()||'（住所未入力）';
+    return '<div class="qrmap"><img class="qrimg" src="'+qr.createDataURL(6,0)+'">'
+      +'<div class="qrtext"><div class="qrt1">スマホでQRを読み取り</div>'
+      +'<div class="qrt2">Googleマップ／ナビが開きます</div>'
+      +'<div class="qra"></div></div></div>';
+  }
+
+  $('saveBtn').addEventListener('click', async ()=>{
+    const msg=$('msg'); msg.textContent='画像を作成中…';
+    $('navlink').style.display='none';
+    const hasKey=!!getKey(); const box=$('mapBox'); let original=null;
+    if(hasKey){ const img=box.querySelector('img.map'); const u=staticMapURL(); if(img && u){ if(img.src!==u) img.src=u; try{ await img.decode(); }catch(e){} } }
+    else { original=box.innerHTML; box.innerHTML=qrHTML(); const a=box.querySelector('.qra'); if(a) a.textContent=$('f-addr').value.trim()||'（住所未入力）'; const q=box.querySelector('img'); if(q&&!q.complete){ try{ await q.decode(); }catch(e){} } }
+    try{
+      const canvas=await html2canvas($('sheet'),{scale:2,useCORS:true,backgroundColor:'#ffffff'});
+      const a=document.createElement('a');
+      a.download='収集手配書_'+($('f-name').value.trim()||'手配書')+'.png';
+      a.href=canvas.toDataURL('image/png'); a.click();
+      msg.textContent='保存しました。LINE/チャットで事務員さんへ送ってください。';
+    }catch(err){ msg.textContent='保存に失敗しました: '+err; }
+    finally{ if(!hasKey && original!==null){ box.innerHTML=original; } $('navlink').style.display=''; updateMap(); }
+  });
+
+  // LINE用テキスト（全項目）
+  function lineText(){
+    const cars=[$('car1').value,$('car2').value,$('car3').value].map(v=>v.trim()).filter(Boolean).join(' / ');
+    const notes=['f-note1','f-note2','f-note3','f-note4'].map(id=>$(id).value.trim()).filter(Boolean);
+    const L=['【新規収集】'+$('f-name').value.trim()];
+    const add=(label,val)=>{ if(val&&val.trim()) L.push(label+'：'+val.trim()); };
+    add('住所',$('f-addr').value);
+    add('収集頻度',freqText());
+    add('収集日時',$('f-datetime').value);
+    add('収集場所',$('f-place').value);
+    add('品目',$('f-item').value);
+    add('担当',$('f-staff').value);
+    if(cars) L.push('車番：'+cars);
+    if(notes.length){ L.push('注意事項：'); notes.forEach(n=>L.push('・'+n)); }
+    L.push('地図：'+gmapLink());
+    return L.join('\n');
+  }
+  $('copyBtn').addEventListener('click', async ()=>{
+    try{ await navigator.clipboard.writeText(lineText()); $('msg').textContent='LINE用テキストをコピーしました。'; }
+    catch{ $('msg').textContent='コピーできませんでした。手動で選択してください。'; }
+  });
+
+  renderCars(); updateMap(); updateFreqUI(); renderNotes();
+</script>
+</body>
+</html>
