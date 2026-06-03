@@ -93,7 +93,7 @@
   <div class="app">
     <aside class="form-pane">
       <h1>収集手配書 作成</h1>
-      <p class="hint">入力すると右に手配書ができます。<br>「画像で保存」→ LINE/チャットで事務員さんへ送付。</p>
+      <p class="hint">入力すると右に手配書ができます。<br>「画像を送る／保存」→ スマホは共有メニューでLINEを選ぶと写真として送れます。</p>
 
       <label>車番（最大3台）</label>
       <div class="car-inputs">
@@ -153,7 +153,7 @@
       </div>
 
       <div class="btns">
-        <button id="saveBtn" class="primary">画像で保存（PNG）</button>
+        <button id="saveBtn" class="primary">画像を送る／保存</button>
         <button id="copyBtn" class="sub">LINE用テキストをコピー</button>
       </div>
       <p id="msg" class="msg"></p>
@@ -307,6 +307,12 @@
       +'<div class="qra"></div></div></div>';
   }
 
+  function downloadBlob(blob,name){
+    const a=document.createElement('a'); a.download=name; a.href=URL.createObjectURL(blob);
+    document.body.appendChild(a); a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },1000);
+  }
+
   $('saveBtn').addEventListener('click', async ()=>{
     const msg=$('msg'); msg.textContent='画像を作成中…';
     $('navlink').style.display='none';
@@ -315,10 +321,21 @@
     else { original=box.innerHTML; box.innerHTML=qrHTML(); const a=box.querySelector('.qra'); if(a) a.textContent=$('f-addr').value.trim()||'（住所未入力）'; const q=box.querySelector('img'); if(q&&!q.complete){ try{ await q.decode(); }catch(e){} } }
     try{
       const canvas=await html2canvas($('sheet'),{scale:2,useCORS:true,backgroundColor:'#ffffff'});
-      const a=document.createElement('a');
-      a.download='収集手配書_'+($('f-name').value.trim()||'手配書')+'.png';
-      a.href=canvas.toDataURL('image/png'); a.click();
-      msg.textContent='保存しました。LINE/チャットで事務員さんへ送ってください。';
+      const fileName='収集手配書_'+($('f-name').value.trim()||'手配書')+'.png';
+      const blob=await new Promise(res=>canvas.toBlob(res,'image/png'));
+      const file=new File([blob],fileName,{type:'image/png'});
+      if(navigator.canShare && navigator.canShare({files:[file]})){
+        try{
+          await navigator.share({files:[file],title:'収集手配書'});
+          msg.textContent='共有メニューで「LINE」を選ぶと、写真として送れます。';
+        }catch(err){
+          if(err && err.name==='AbortError'){ msg.textContent='キャンセルしました。'; }
+          else{ downloadBlob(blob,fileName); msg.textContent='画像を保存しました。写真として送る時はアルバムから選んでください。'; }
+        }
+      }else{
+        downloadBlob(blob,fileName);
+        msg.textContent='保存しました。LINE/チャットで事務員さんへ送ってください。';
+      }
     }catch(err){ msg.textContent='保存に失敗しました: '+err; }
     finally{ if(!hasKey && original!==null){ box.innerHTML=original; } $('navlink').style.display=''; updateMap(); }
   });
