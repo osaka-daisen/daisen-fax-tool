@@ -237,9 +237,26 @@
   <button onclick="switchTab('soufu')">送付状</button>
 </div>
 
+<!-- 履歴モーダル -->
+<div id="history-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;padding:20px;overflow-y:auto;">
+  <div style="max-width:640px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;">
+    <div style="background:#2563eb;color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;">
+      <b style="font-size:16px;">📋 履歴</b>
+      <button onclick="closeHistoryModal()" style="background:transparent;border:none;color:#fff;font-size:22px;cursor:pointer;line-height:1;padding:0;">×</button>
+    </div>
+    <div id="history-list" style="padding:12px 14px;max-height:65vh;overflow-y:auto;"></div>
+    <div style="padding:0 14px 14px;text-align:center;">
+      <button onclick="clearAllHistory()" style="background:#dc2626;color:#fff;border:none;border-radius:6px;padding:8px 18px;font-size:13px;cursor:pointer;">全削除</button>
+    </div>
+  </div>
+</div>
+
 <!-- === 入力フォーム === -->
 <div class="form-container">
-  <div class="section-title">基本情報</div>
+  <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;border-bottom:none;padding-bottom:0;">
+    <span style="border-bottom:2px solid #2563eb;padding-bottom:4px;flex:1;">基本情報</span>
+    <button type="button" onclick="openHistoryModal()" style="background:#fff;border:1.5px solid #2563eb;color:#2563eb;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;font-weight:600;margin-left:10px;">📋 履歴</button>
+  </div>
 
   <div class="form-group">
     <label>日付</label>
@@ -499,6 +516,9 @@
 
     if (!company) { alert('送付先（会社名）を入力してください'); return; }
 
+    // 履歴に自動保存
+    saveToHistory();
+
     const d = new Date(date);
     const dateStr = `${d.getFullYear()}年　${d.getMonth()+1}月　${d.getDate()}日`;
 
@@ -623,6 +643,128 @@
 
   function backToForm() {
     document.body.classList.remove('preview-mode');
+  }
+
+  // === 履歴機能 ===
+  const HIST_KEY = 'daisen_fax_history';
+  function getHistory() {
+    try { return JSON.parse(localStorage.getItem(HIST_KEY) || '[]'); } catch(e) { return []; }
+  }
+  function collectFormData() {
+    return {
+      tab: currentTab,
+      date: document.getElementById('f-date').value,
+      company: document.getElementById('f-company').value,
+      person: document.getElementById('f-person').value,
+      keisho: document.getElementById('f-keisho').value,
+      fax: document.getElementById('f-fax').value,
+      tantou: document.getElementById('f-tantou').value,
+      bukken: document.getElementById('f-bukken').value,
+      memo: document.getElementById('f-memo').value,
+      pages: document.getElementById('f-pages').value,
+      returnToggle: document.getElementById('f-return-toggle').checked,
+      returnDeadline: document.getElementById('f-return-deadline').value,
+      customDocs: document.getElementById('f-custom-docs').value,
+      docs: Array.from(document.querySelectorAll('#doc-list .doc-card')).map(card => {
+        const cb = card.querySelector('input[type="checkbox"]');
+        return {
+          doc: cb.dataset.doc,
+          checked: cb.checked,
+          qty: card.querySelector('.doc-qty').value,
+          note: card.querySelector('.doc-note-input').value
+        };
+      })
+    };
+  }
+  function restoreFormData(d) {
+    if (d.tab) switchTab(d.tab);
+    document.getElementById('f-date').value = d.date || '';
+    document.getElementById('f-company').value = d.company || '';
+    document.getElementById('f-person').value = d.person || '';
+    document.getElementById('f-keisho').value = d.keisho || '御中';
+    document.getElementById('f-fax').value = d.fax || '';
+    document.getElementById('f-tantou').value = d.tantou || '木村';
+    document.getElementById('f-bukken').value = d.bukken || '';
+    document.getElementById('f-memo').value = d.memo || '';
+    document.getElementById('f-pages').value = d.pages || '2';
+    document.getElementById('f-return-toggle').checked = d.returnToggle !== false;
+    document.getElementById('f-return-deadline').value = d.returnDeadline || '';
+    document.getElementById('f-custom-docs').value = d.customDocs || '';
+    if (d.docs) {
+      const cards = document.querySelectorAll('#doc-list .doc-card');
+      cards.forEach((card, i) => {
+        const saved = d.docs[i];
+        if (!saved) return;
+        const cb = card.querySelector('input[type="checkbox"]');
+        cb.checked = !!saved.checked;
+        card.classList.toggle('checked', !!saved.checked);
+        card.querySelector('.doc-qty').value = saved.qty || '1';
+        const note = card.querySelector('.doc-note-input');
+        if (note) note.value = saved.note || '';
+      });
+    }
+  }
+  function saveToHistory() {
+    try {
+      const company = document.getElementById('f-company').value;
+      if (!company) return;
+      const list = getHistory();
+      list.unshift({
+        id: Date.now() + '' + Math.random().toString(36).slice(2,6),
+        savedAt: new Date().toISOString(),
+        company: company,
+        tab: currentTab,
+        data: collectFormData()
+      });
+      if (list.length > 50) list.length = 50;
+      localStorage.setItem(HIST_KEY, JSON.stringify(list));
+    } catch(e) { console.warn('history save error', e); }
+  }
+  function openHistoryModal() {
+    renderHistoryList();
+    document.getElementById('history-modal').style.display = 'block';
+  }
+  function closeHistoryModal() {
+    document.getElementById('history-modal').style.display = 'none';
+  }
+  function renderHistoryList() {
+    const list = getHistory();
+    const container = document.getElementById('history-list');
+    if (list.length === 0) {
+      container.innerHTML = '<div style="text-align:center;color:#888;padding:40px 20px;font-size:13px;line-height:1.8;">まだ履歴がありません<br>プレビュー時に自動保存されます</div>';
+      return;
+    }
+    container.innerHTML = list.map(e => {
+      const dt = e.savedAt.slice(0,10).replace(/-/g,'/') + ' ' + e.savedAt.slice(11,16);
+      const tabIcon = e.tab === 'fax' ? '📠 FAX案内' : '📮 送付状';
+      const bukken = e.data && e.data.bukken ? '<div style="font-size:12px;color:#666;margin-top:1px;">' + e.data.bukken + '</div>' : '';
+      return '<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;gap:10px;">'
+        + '<div style="flex:1;cursor:pointer;" onclick="restoreFromHistory(\'' + e.id + '\')">'
+        + '<div style="font-size:11px;color:#888;">' + dt + '　' + tabIcon + '</div>'
+        + '<div style="font-size:14px;font-weight:700;color:#2563eb;margin-top:2px;">' + e.company + '</div>'
+        + bukken
+        + '</div>'
+        + '<button onclick="deleteHistoryItem(\'' + e.id + '\')" style="background:#dc2626;color:#fff;border:none;border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer;">×</button>'
+        + '</div>';
+    }).join('');
+  }
+  function restoreFromHistory(id) {
+    const item = getHistory().find(e => e.id === id);
+    if (!item) return;
+    restoreFormData(item.data);
+    closeHistoryModal();
+  }
+  function deleteHistoryItem(id) {
+    if (confirm('この履歴を削除しますか？')) {
+      localStorage.setItem(HIST_KEY, JSON.stringify(getHistory().filter(e => e.id !== id)));
+      renderHistoryList();
+    }
+  }
+  function clearAllHistory() {
+    if (confirm('履歴を全て削除しますか？')) {
+      localStorage.removeItem(HIST_KEY);
+      renderHistoryList();
+    }
   }
 </script>
 </body>
