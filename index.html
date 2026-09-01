@@ -105,7 +105,7 @@
 
   /* === 印刷エリア（A4: 794x1123px @96dpi） === */
   .print-area {
-    display: none; width: 794px; height: 1123px; overflow: hidden;
+    display: none; width: 794px; min-height: 1123px; overflow: visible;
     margin: 0 auto; padding: 45px 68px 38px; background: #fff;
     font-family: "Yu Mincho", "Hiragino Mincho Pro", "MS Mincho", serif;
     color: #000;
@@ -220,6 +220,12 @@
     display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; padding: 16px;
   }
   .preview-buttons { display: none; }
+  .overflow-note {
+    display: none; max-width: 794px; margin: 12px auto -8px;
+    background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px;
+    padding: 10px 14px; font-size: 13px; color: #92400e; line-height: 1.6;
+  }
+  body.preview-mode .overflow-note.on { display: block; }
   .preview-buttons .btn { width: auto; padding: 12px 32px; margin: 0; }
 
   /* PDF生成中オーバーレイ */
@@ -432,6 +438,10 @@
 </div>
 
 <!-- === プレビューボタン === -->
+<div class="overflow-note" id="overflow-note">
+  本文がA4 1枚に収まりきっていません。PDFは全体が入るように自動で少し縮小されます。
+  文字を大きいまま出したいときは、MEMO欄を短くしてください。
+</div>
 <div class="preview-buttons">
   <button class="btn btn-pdf" id="btn-pdf" onclick="generatePDF()">PDF作成・ダウンロード</button>
   <button class="btn btn-secondary" onclick="backToForm()">戻って修正</button>
@@ -651,6 +661,17 @@
 
     document.getElementById('p-pages').textContent = pages;
     document.body.classList.add('preview-mode');
+    checkOverflow();
+  }
+
+  // A4（1123px）に収まっているか見て、注意書きを出し分ける
+  function checkOverflow() {
+    const el = document.getElementById('print-area');
+    const note = document.getElementById('overflow-note');
+    if (!el || !note) return;
+    requestAnimationFrame(() => {
+      note.classList.toggle('on', el.scrollHeight > 1123 + 2);
+    });
   }
 
   function backToForm() {
@@ -846,18 +867,21 @@
 
       // キャプチャ用に一時的にサイズ固定（スマホでも正確なA4比率）
       const origStyle = el.getAttribute('style') || '';
-      el.style.cssText = 'display:flex; width:794px; height:1123px; overflow:hidden; flex-direction:column; margin:0 auto; padding:45px 68px 38px; background:#fff; font-family:"Yu Mincho","Hiragino Mincho Pro","MS Mincho",serif; color:#000;';
+      el.style.cssText = 'display:flex; width:794px; min-height:1123px; height:auto; overflow:visible; flex-direction:column; margin:0 auto; padding:45px 68px 38px; background:#fff; font-family:"Yu Mincho","Hiragino Mincho Pro","MS Mincho",serif; color:#000;';
 
       await new Promise(r => setTimeout(r, 200));
+
+      // 中身が長いときはその高さで撮る（切り捨てない）
+      const fullH = Math.max(1123, Math.ceil(el.scrollHeight));
 
       const canvas = await html2canvas(el, {
         scale: 2,
         useCORS: true,
         backgroundColor: '#ffffff',
         width: 794,
-        height: 1123,
+        height: fullH,
         windowWidth: 900,
-        windowHeight: 1200,
+        windowHeight: fullH + 200,
       });
 
       // スタイル復元
@@ -866,7 +890,13 @@
 
       const imgData = canvas.toDataURL('image/jpeg', 0.95);
       const pdf = new JsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+
+      // A4に全体が入るように合わせる（長い本文は少し縮む／切れない）
+      const PW = 210, PH = 297;
+      const ratio = canvas.height / canvas.width;
+      let w = PW, h = PW * ratio;
+      if (h > PH) { h = PH; w = PH / ratio; }
+      pdf.addImage(imgData, 'JPEG', (PW - w) / 2, (PH - h) / 2, w, h);
 
       // ファイル名を生成
       const company = document.getElementById('f-company').value || '書類';
