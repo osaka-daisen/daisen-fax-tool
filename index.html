@@ -315,6 +315,16 @@
 
   <div class="form-row">
     <div class="form-group">
+      <label>差出（事務所）</label>
+      <select id="f-office">
+        <option value="osaka">大阪本社（東田辺）</option>
+        <option value="sakai">堺事務所（浅香山）</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
       <label>担当者</label>
       <select id="f-tantou">
         <option value="木村">木村</option>
@@ -460,9 +470,9 @@
     </div>
 
     <div class="sender-block">
-      〒546-0032　大阪市東住吉区東田辺3-26-31<br>
+      <span id="p-from-addr">〒546-0032　大阪市東住吉区東田辺3-26-31</span><br>
       <span class="co">大 泉 衛 生 株 式 会 社</span><br>
-      TEL 06-6696-6789 ／ FAX 06-6696-0234<br>
+      <span id="p-from-tel">TEL 06-6696-6789 ／ FAX 06-6696-0234</span><br>
       ﾒｰﾙ d-daisen@aurora.ocn.ne.jp　　担当：<span id="p-tantou"></span>
     </div>
 
@@ -542,6 +552,17 @@
     const showReturn = document.getElementById('f-return-toggle').checked;
     const returnDeadline = document.getElementById('f-return-deadline').value;
     const isFax = currentTab === 'fax';
+
+    // 差出の事務所。堺事務所にはFAXが無いのでTELだけ
+    const FROM = {
+      osaka: { addr: '〒546-0032　大阪市東住吉区東田辺3-26-31', tel: 'TEL 06-6696-6789 ／ FAX 06-6696-0234' },
+      sakai: { addr: '〒590-0012　堺市堺区浅香山町3丁4番12号', tel: 'TEL 072-240-3841' }
+    };
+    const office = document.getElementById('f-office').value;
+    const from = FROM[office] || FROM.osaka;
+    document.getElementById('p-from-addr').textContent = from.addr;
+    document.getElementById('p-from-tel').textContent = from.tel;
+    try { localStorage.setItem('daisen_fax_office', office); } catch(e) {}
 
     if (!company) { alert('送付先（会社名）を入力してください'); return; }
 
@@ -683,6 +704,10 @@
   function getHistory() {
     try { return JSON.parse(localStorage.getItem(HIST_KEY) || '[]'); } catch(e) { return []; }
   }
+  try {
+    const savedOffice = localStorage.getItem('daisen_fax_office');
+    if (savedOffice) document.getElementById('f-office').value = savedOffice;
+  } catch(e) {}
   function collectFormData() {
     return {
       tab: currentTab,
@@ -692,6 +717,7 @@
       keisho: document.getElementById('f-keisho').value,
       fax: document.getElementById('f-fax').value,
       tantou: document.getElementById('f-tantou').value,
+      office: document.getElementById('f-office').value,
       bukken: document.getElementById('f-bukken').value,
       memo: document.getElementById('f-memo').value,
       pages: document.getElementById('f-pages').value,
@@ -717,6 +743,7 @@
     document.getElementById('f-keisho').value = d.keisho || '御中';
     document.getElementById('f-fax').value = d.fax || '';
     document.getElementById('f-tantou').value = d.tantou || '木村';
+    document.getElementById('f-office').value = d.office || 'osaka';
     document.getElementById('f-bukken').value = d.bukken || '';
     document.getElementById('f-memo').value = d.memo || '';
     document.getElementById('f-pages').value = d.pages || '2';
